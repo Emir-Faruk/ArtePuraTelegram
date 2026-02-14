@@ -149,28 +149,30 @@ def zoomable_image_pro(src, alt):
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
         <script src="https://unpkg.com/@panzoom/panzoom@4.5.1/dist/panzoom.min.js"></script>
         <style>
-            body {{
+            html, body {{
                 margin: 0;
+                padding: 0;
                 background-color: #000;
                 height: 100vh;
-                display: flex;
-                flex-direction: column;
-                justify-content: center;
-                align-items: center;
-                overflow: hidden;
+                width: 100vw;
+                overflow: hidden; /* Scrollbarları engelle */
             }}
             #scene {{
-                width: 100%;
-                height: 100%;
+                width: 100vw;
+                height: 100vh;
                 display: flex;
-                justify-content: center;
-                align-items: center;
+                justify-content: center; /* Yatay Ortala */
+                align-items: center;     /* Dikey Ortala */
             }}
             img {{
                 max-width: 100%;
                 max-height: 100%;
-                object-fit: contain;
-                /* Başlangıçta yumuşak geçiş olmasın, Panzoom yönetecek */
+                object-fit: contain; /* Orantılı sığdır */
+                transform-origin: center center; /* Zoom merkezden başlasın */
+                cursor: grab;
+            }}
+            img:active {{
+                cursor: grabbing;
             }}
             
             /* Kontrol Paneli */
@@ -257,11 +259,18 @@ def zoomable_image_pro(src, alt):
             const panzoom = Panzoom(elem, {{
                 maxScale: 5,
                 minScale: 0.5,
-                contain: 'outside', // Görselin dışarı kaçmasını engelle
-                startScale: 1
+                contain: false, // Flexbox ortalaması için false yaptık (önceki 'outside' bozuyordu)
+                startScale: 1,
+                animate: true
             }});
 
-            // Mouse Tekerleği ile Zoom
+            // Resim tamamen yüklendiğinde ve boyutlandığında tekrar resetle
+            // Bu, görselin ilk açılışta ortalanmasını garanti eder
+            elem.onload = function() {{
+                panzoom.reset();
+            }};
+
+            // Mouse Tekerleği
             scene.addEventListener('wheel', panzoom.zoomWithWheel);
 
             // Buton Bağlantıları
@@ -293,7 +302,6 @@ def zoomable_image_pro(src, alt):
     </body>
     </html>
     """
-    # Yüksekliği artırdım (650px) daha ferah bir alan için
     components.html(html_code, height=650)
 
 # --- 4. STATE ---
