@@ -1,1 +1,4 @@
-streamlit requests Pillow numpy
+streamlit
+requests
+Pillow
+numpy
