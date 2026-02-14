@@ -1,6 +1,7 @@
 import streamlit as st
 import requests
 import random
+import concurrent.futures
 import streamlit.components.v1 as components
 
 # --- 1. KONFİGÜRASYON ---
@@ -86,7 +87,9 @@ def safe_str(val):
     if isinstance(val, list): return ", ".join([str(v) for v in val])
     return str(val)
 
-# API Normalizasyon
+# --- API NORMALİZASYON ---
+
+# 1. Chicago Art Institute
 def normalize_chicago(item):
     if not item.get('image_id'): return None
     iiif = "https://www.artic.edu/iiif/2"
@@ -101,6 +104,7 @@ def normalize_chicago(item):
         'link': f"https://www.artic.edu/artworks/{item['id']}"
     }
 
+# 2. Cleveland Museum of Art
 def normalize_cleveland(item):
     if not item.get('images') or not item.get('images').get('web'): return None
     creators = item.get('creators', [])
@@ -123,19 +127,68 @@ def normalize_cleveland(item):
         'link': item.get('url', '#')
     }
 
+# 3. The Metropolitan Museum of Art (YENİ!)
+def normalize_met(item):
+    if not item.get('primaryImageSmall'): return None
+    return {
+        'id': f"met-{item['objectID']}",
+        'source': 'The Met (NY)',
+        'title': safe_str(item.get('title')),
+        'artist': safe_str(item.get('artistDisplayName') or 'Unknown'),
+        'date': safe_str(item.get('objectDate')),
+        'thumbnail': item['primaryImageSmall'],
+        'high_res': item['primaryImage'], # Met görselleri genelde çok yüksek kalitedir
+        'link': item.get('objectURL', '#')
+    }
+
+# --- PARALEL VERİ ÇEKME MOTORU ---
+def fetch_met_details(object_id):
+    """Tek bir Met objesinin detayını çeker"""
+    try:
+        r = requests.get(f"https://collectionapi.metmuseum.org/public/collection/v1/objects/{object_id}", timeout=2)
+        if r.status_code == 200:
+            return normalize_met(r.json())
+    except:
+        return None
+
 @st.cache_data(show_spinner=False, ttl=3600)
 def fetch_artworks(query):
     artworks = []
+    
+    # 1. Chicago (Hızlı)
     try:
-        url = f"https://api.artic.edu/api/v1/artworks/search?q={query}&limit=12&fields=id,title,image_id,artist_display,date_display&query[term][is_public_domain]=true"
+        url = f"https://api.artic.edu/api/v1/artworks/search?q={query}&limit=6&fields=id,title,image_id,artist_display,date_display&query[term][is_public_domain]=true"
         r = requests.get(url, timeout=3).json()
         artworks.extend([normalize_chicago(i) for i in r['data'] if normalize_chicago(i)])
     except: pass
+
+    # 2. Cleveland (Hızlı)
     try:
-        url = f"https://openaccess-api.clevelandart.org/api/artworks/?q={query}&limit=12&has_image=1"
+        url = f"https://openaccess-api.clevelandart.org/api/artworks/?q={query}&limit=6&has_image=1"
         r = requests.get(url, timeout=3).json()
         artworks.extend([normalize_cleveland(i) for i in r['data'] if normalize_cleveland(i)])
     except: pass
+
+    # 3. The Met (Yavaş olduğu için Paralel İşleme)
+    try:
+        # Önce arama yapıp ID'leri alıyoruz
+        search_url = f"https://collectionapi.metmuseum.org/public/collection/v1/search?q={query}&hasImages=true&isPublicDomain=true"
+        r = requests.get(search_url, timeout=3).json()
+        
+        if r['total'] > 0:
+            # Rastgele 5 ID seçiyoruz (hepsini çekersek sistem donar)
+            object_ids = r['objectIDs'][:20] # İlk 20 içinden
+            random.shuffle(object_ids)
+            selected_ids = object_ids[:6] # 6 tanesini al
+            
+            # ThreadPoolExecutor ile AYNI ANDA 6 istek atıyoruz
+            with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
+                results = list(executor.map(fetch_met_details, selected_ids))
+            
+            # Boş sonuçları temizle
+            artworks.extend([res for res in results if res])
+    except: pass
+    
     random.shuffle(artworks)
     return artworks
 
@@ -259,13 +312,12 @@ def zoomable_image_pro(src, alt):
             const panzoom = Panzoom(elem, {{
                 maxScale: 5,
                 minScale: 0.5,
-                contain: false, // Flexbox ortalaması için false yaptık (önceki 'outside' bozuyordu)
+                contain: false, // Flexbox ortalaması için false yaptık
                 startScale: 1,
                 animate: true
             }});
 
             // Resim tamamen yüklendiğinde ve boyutlandığında tekrar resetle
-            // Bu, görselin ilk açılışta ortalanmasını garanti eder
             elem.onload = function() {{
                 panzoom.reset();
             }};
@@ -318,7 +370,7 @@ with c1:
     st.markdown('<div style="font-family:Playfair Display; font-size:24px; color:#d4af37;">Arte Pura <span style="font-size:12px; color:#666;">ULTIMATE</span></div>', unsafe_allow_html=True)
 with c2:
     if st.button("🎲", help="Rastgele"):
-        topics = ["Surrealism", "Renaissance", "Ukiyo-e", "Abstract", "Portrait", "Baroque", "Cubism"]
+        topics = ["Surrealism", "Renaissance", "Ukiyo-e", "Abstract", "Portrait", "Baroque", "Cubism", "Islamic Art", "Modern Art"]
         st.session_state.query = random.choice(topics)
         st.session_state.artworks = [] 
         st.session_state.view = 'list'
@@ -365,7 +417,7 @@ if st.session_state.view == 'detail' and st.session_state.selected_art:
 # --- LİSTE GÖRÜNÜMÜ ---
 else:
     # Filtreler
-    tags = ["Impressionism", "Van Gogh", "Japanese Art", "Sculpture", "Bauhaus", "Modernism"]
+    tags = ["Impressionism", "Van Gogh", "Japanese Art", "Sculpture", "Bauhaus", "Modernism", "Islamic Art"]
     filter_choice = st.selectbox("Koleksiyonlar:", ["Kişisel Arama Yap..."] + tags, label_visibility="collapsed")
     
     if filter_choice != "Kişisel Arama Yap..." and filter_choice != st.session_state.query:
@@ -383,7 +435,7 @@ else:
     st.markdown(f"<p style='font-size:12px; color:#666; margin-top:5px; margin-bottom:15px;'>Seçim: <span style='color:#d4af37'>{st.session_state.query}</span></p>", unsafe_allow_html=True)
 
     if not st.session_state.artworks:
-        with st.spinner('Yüksek kaliteli eserler hazırlanıyor...'):
+        with st.spinner('Evrensel koleksiyon taranıyor (Met, Chicago, Cleveland)...'):
             st.session_state.artworks = fetch_artworks(st.session_state.query)
 
     # Grid
