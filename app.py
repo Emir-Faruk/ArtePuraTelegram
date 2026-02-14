@@ -91,17 +91,16 @@ def safe_str(val):
     if isinstance(val, list): return ", ".join([str(v) for v in val])
     return str(val)
 
-# Renk Paleti Çıkarıcı (Basit ve Hızlı)
+# Renk Paleti Çıkarıcı
 @st.cache_data(show_spinner=False)
 def extract_palette(image_url, num_colors=5):
     try:
         response = requests.get(image_url, timeout=5)
         img = Image.open(BytesIO(response.content))
-        img = img.resize((150, 150)) # Hız için küçült
+        img = img.resize((150, 150)) 
         result = img.convert('P', palette=Image.ADAPTIVE, colors=num_colors)
         result.putalpha(0)
         colors = result.getcolors(150*150)
-        # Renkleri sıklığa göre sırala ve hex koduna çevir
         hex_colors = []
         for count, col in sorted(colors, reverse=True):
             hex_colors.append('#{:02x}{:02x}{:02x}'.format(col[0], col[1], col[2]))
@@ -109,7 +108,7 @@ def extract_palette(image_url, num_colors=5):
     except:
         return []
 
-# API Normalizasyon (Önceki koddan)
+# API Normalizasyon
 def normalize_chicago(item):
     if not item.get('image_id'): return None
     iiif = "https://www.artic.edu/iiif/2"
@@ -119,7 +118,8 @@ def normalize_chicago(item):
         'title': safe_str(item.get('title')),
         'artist': safe_str(item.get('artist_display', 'Unknown').split('\n')[0]),
         'date': safe_str(item.get('date_display')),
-        'thumb': f"{iiif}/{item['image_id']}/full/400,/0/default.jpg",
+        # 'thumb' yerine 'thumbnail' kullanarak eski veriyle uyumluluk sağlıyoruz
+        'thumbnail': f"{iiif}/{item['image_id']}/full/400,/0/default.jpg",
         'high_res': f"{iiif}/{item['image_id']}/full/843,/0/default.jpg",
         'link': f"https://www.artic.edu/artworks/{item['id']}"
     }
@@ -134,7 +134,7 @@ def normalize_cleveland(item):
         'title': safe_str(item.get('title')),
         'artist': safe_str(artist),
         'date': safe_str(item.get('creation_date')),
-        'thumb': item['images']['web']['url'],
+        'thumbnail': item['images']['web']['url'],
         'high_res': item['images']['print']['url'] if item['images'].get('print') else item['images']['web']['url'],
         'link': item.get('url', '#')
     }
@@ -174,7 +174,7 @@ with c2:
     if st.button("🎲", help="Rastgele Eser"):
         topics = ["Surrealism", "Renaissance", "Ukiyo-e", "Abstract", "Portrait", "Landscape", "Baroque"]
         st.session_state.query = random.choice(topics)
-        st.session_state.artworks = [] # Reset to force fetch
+        st.session_state.artworks = [] 
         st.session_state.view = 'list'
         st.rerun()
 
@@ -182,12 +182,11 @@ with c2:
 if st.session_state.view == 'detail' and st.session_state.selected_art:
     art = st.session_state.selected_art
     
-    # Geri Dön Butonu (Üstte, soluk)
     if st.button("← Galeriy Dön", key="back_btn"):
         st.session_state.view = 'list'
         st.rerun()
 
-    # Görsel ve Bilgi
+    # Görsel
     st.image(art['high_res'], use_container_width=True)
     
     st.markdown(f"""
@@ -197,12 +196,12 @@ if st.session_state.view == 'detail' and st.session_state.selected_art:
     </div>
     """, unsafe_allow_html=True)
 
-    # Sekmeler (Tabs) ile Düzenli Bilgi
+    # Sekmeler
     tab1, tab2 = st.tabs(["🎨 Renk DNA'sı", "ℹ️ Detaylar"])
     
     with tab1:
         st.caption("Yapay zeka bu eserin baskın renklerini analiz ediyor...")
-        palette = extract_palette(art['thumb']) # Küçük resimden hızlı analiz
+        palette = extract_palette(art['thumbnail']) # Değişiklik: 'thumb' -> 'thumbnail'
         if palette:
             cols = st.columns(5)
             for i, color in enumerate(palette):
@@ -222,10 +221,8 @@ if st.session_state.view == 'detail' and st.session_state.selected_art:
         </div>
         """, unsafe_allow_html=True)
         
-    # İndirme Butonu (Wallpaper için)
     st.markdown("<br>", unsafe_allow_html=True)
     try:
-        # İndirme butonu için binary veriyi çekiyoruz
         img_data = requests.get(art['high_res']).content
         st.download_button(
             label="Duvar Kağıdı Olarak İndir (HD)",
@@ -239,15 +236,7 @@ if st.session_state.view == 'detail' and st.session_state.selected_art:
 
 # --- LİSTE GÖRÜNÜMÜ ---
 else:
-    # Akıllı Filtreler (Pills)
     tags = ["Impressionism", "Van Gogh", "Japanese Art", "Sculpture", "Bauhaus", "Modernism"]
-    cols_tags = st.columns(len(tags))
-    # Yatay scroll yerine grid buton mantığı
-    selected_tag = None
-    
-    st.markdown('<div style="display:flex; gap:10px; overflow-x:auto; padding-bottom:10px;">', unsafe_allow_html=True)
-    # Streamlit'te yan yana buton zor olduğu için columns kullandık
-    # Ancak mobil için selectbox daha iyi olabilir
     
     filter_choice = st.selectbox("Küratör Seçkileri:", ["Kişisel Arama Yap..."] + tags, label_visibility="collapsed")
     
@@ -256,7 +245,6 @@ else:
         st.session_state.artworks = []
         st.rerun()
 
-    # Arama
     if filter_choice == "Kişisel Arama Yap...":
         search_input = st.text_input("Özel Arama", value="", placeholder="Örn: The Kiss, Klimt...", label_visibility="collapsed")
         if search_input and search_input != st.session_state.query:
@@ -266,18 +254,21 @@ else:
 
     st.markdown(f"<p style='font-size:12px; color:#666; margin-top:10px;'>Şu an gösteriliyor: <span style='color:#d4af37'>{st.session_state.query}</span></p>", unsafe_allow_html=True)
 
-    # Veri Yükleme
     if not st.session_state.artworks:
         with st.spinner('Sanat eserleri taranıyor...'):
             st.session_state.artworks = fetch_artworks(st.session_state.query)
 
-    # Masonry Grid (2 Sütun Mobil İçin İdeal)
     c1, c2 = st.columns(2)
     for i, art in enumerate(st.session_state.artworks):
         col = c1 if i % 2 == 0 else c2
         with col:
             with st.container():
-                st.image(art['thumb'], use_container_width=True)
+                # Güvenlik Kontrolü: Eğer eski cache'den 'thumbnail' gelirse onu, yoksa 'thumb'ı dene
+                img_url = art.get('thumbnail', art.get('thumb', ''))
+                
+                if img_url:
+                    st.image(img_url, use_container_width=True)
+                
                 if st.button(f"{art['title'][:20]}...", key=f"list_{art['id']}"):
                     st.session_state.selected_art = art
                     st.session_state.view = 'detail'
@@ -285,5 +276,5 @@ else:
                 st.markdown("<div style='margin-bottom:20px;'></div>", unsafe_allow_html=True)
 
     if st.button("Daha Fazla Keşfet", use_container_width=True):
-        st.session_state.artworks = [] # Basitçe yenile (pagination yerine shuffle discovery)
+        st.session_state.artworks = []
         st.rerun()
