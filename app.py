@@ -1081,17 +1081,17 @@ if st.session_state.view == 'detail' and st.session_state.selected_art:
     
     st.markdown(f"""
 <div style="margin-top:10px; margin-bottom:5px;">
-    <h2 style="margin:0; font-size:22px; color:#e0e0e0;">{art['title']}</h2>
-    <p style="color:#d4af37; font-family:'Playfair Display',serif; font-style:italic;">{art['artist']}</p>
+<h2 style="margin:0; font-size:22px; color:#e0e0e0;">{art['title']}</h2>
+<p style="color:#d4af37; font-family:'Playfair Display',serif; font-style:italic;">{art['artist']}</p>
 </div>
 
 <div style="background:#1a1a1a; padding:15px; border-radius:8px; font-size:13px; color:#aaa; margin-top:20px;">
-    <p><strong>Tarih:</strong> {art['date']}</p>
-    {dimensions_html}
-    <p><strong>Müze:</strong> {art['source']}</p>
-    {colors_html}
-    <hr style="border-color:#333;">
-    <a href="{art['link']}" target="_blank" style="color:#fff; text-decoration:none;">🔗 Müze Kaydına Git</a>
+<p><strong>Tarih:</strong> {art['date']}</p>
+{dimensions_html}
+<p><strong>Müze:</strong> {art['source']}</p>
+{colors_html}
+<hr style="border-color:#333;">
+<a href="{art['link']}" target="_blank" style="color:#fff; text-decoration:none;">🔗 Müze Kaydına Git</a>
 </div>
 """, unsafe_allow_html=True)
 
