@@ -14,8 +14,10 @@ st.set_page_config(
 
 # --- TELEGRAM ENTEGRASYONU ---
 components.html("""
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+</head>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
 <script>
     window.Telegram.WebApp.ready();
     window.Telegram.WebApp.expand();
@@ -143,16 +145,20 @@ st.markdown("""
         }
     }
     
-    /* Ensure proper scaling on zoom */
-    * {
+    /* Ensure proper scaling on zoom - limited to layout elements for performance */
+    div, img, button, input, select {
         box-sizing: border-box;
     }
     
-    /* Smooth transitions for responsive changes */
-    div[data-testid="stImage"] img,
-    div.stButton > button,
-    h1, h2, h3, p {
-        transition: all 0.3s ease;
+    /* Smooth transitions for responsive changes - optimized for performance */
+    div[data-testid="stImage"] img {
+        transition: max-height 0.3s ease, min-height 0.3s ease;
+    }
+    div.stButton > button {
+        transition: font-size 0.3s ease, padding 0.3s ease, background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+    }
+    h1, h2, h3 {
+        transition: font-size 0.3s ease;
     }
 </style>
 """, unsafe_allow_html=True)
