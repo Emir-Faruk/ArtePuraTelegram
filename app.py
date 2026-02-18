@@ -715,7 +715,7 @@ def fetch_europeana(query, limit=2, page=1):
         return []
     try:
         # Europeana uses 'start' parameter (1-indexed, where start=1 is first item)
-        start = ((page - 1) * limit) + 1
+        start = (page - 1) * limit + 1
         url = f"https://api.europeana.eu/record/v2/search.json?wskey={EUROPEANA_API_KEY}&query={query}&media=true&rows={limit}&start={start}&reusability=open"
         r = requests.get(url, timeout=3)
         if r.status_code == 200:
