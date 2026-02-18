@@ -178,27 +178,27 @@ st.markdown("""
 try:
     RIJKS_API_KEY = st.secrets["API_KEYS"]["rijksmuseum"]
 except Exception:
-    RIJKS_API_KEY = "YOUR_RIJKSMUSEUM_API_KEY_HERE"  # https://data.rijksmuseum.nl/object-metadata/api/
+    RIJKS_API_KEY = "YOUR_RIJKSMUSEUM_API_KEY_HERE"
 
 try:
     HARVARD_API_KEY = st.secrets["API_KEYS"]["harvard"]
 except Exception:
-    HARVARD_API_KEY = "YOUR_HARVARD_API_KEY_HERE"  # https://www.harvardartmuseums.org/collections/api
+    HARVARD_API_KEY = "YOUR_HARVARD_API_KEY_HERE"
 
 try:
     SMITHSONIAN_API_KEY = st.secrets["API_KEYS"]["smithsonian"]
 except Exception:
-    SMITHSONIAN_API_KEY = "YOUR_SMITHSONIAN_API_KEY_HERE"  # https://api.si.edu/openaccess/api/v1.0/
+    SMITHSONIAN_API_KEY = "YOUR_SMITHSONIAN_API_KEY_HERE"
 
 try:
     EUROPEANA_API_KEY = st.secrets["API_KEYS"]["europeana"]
 except Exception:
-    EUROPEANA_API_KEY = "YOUR_EUROPEANA_API_KEY_HERE"  # https://pro.europeana.eu/page/get-api
+    EUROPEANA_API_KEY = "YOUR_EUROPEANA_API_KEY_HERE"
 
 try:
     COOPER_HEWITT_API_KEY = st.secrets["API_KEYS"]["cooper_hewitt"]
 except Exception:
-    COOPER_HEWITT_API_KEY = "YOUR_COOPER_HEWITT_API_KEY_HERE"  # https://collection.cooperhewitt.org/api/
+    COOPER_HEWITT_API_KEY = "YOUR_COOPER_HEWITT_API_KEY_HERE"
 
 # --- 3. YARDIMCI FONKSİYONLAR VE STATE ---
 if 'view' not in st.session_state: st.session_state.view = 'list'
@@ -694,17 +694,20 @@ def fetch_nga(query, limit=1, page=1):
 def fetch_artworks_page(query, page_num):
     new_artworks = []
     
+    # ANA KAYNAKLAR İÇİN LİMİT: 4
+    main_limit = 4
+
     def fetch_chicago():
         try:
-            url = f"https://api.artic.edu/api/v1/artworks/search?q={query}&page={page_num}&limit=1&fields=id,title,image_id,artist_display,date_display&query[term][is_public_domain]=true"
+            url = f"https://api.artic.edu/api/v1/artworks/search?q={query}&page={page_num}&limit={main_limit}&fields=id,title,image_id,artist_display,date_display&query[term][is_public_domain]=true"
             r = requests.get(url, timeout=3).json()
             return [normalize_chicago(i) for i in r['data'] if normalize_chicago(i)]
         except: return []
     
     def fetch_cleveland_page():
         try:
-            skip_val = (page_num - 1) * 1
-            url = f"https://openaccess-api.clevelandart.org/api/artworks/?q={query}&skip={skip_val}&limit=1&has_image=1"
+            skip_val = (page_num - 1) * main_limit
+            url = f"https://openaccess-api.clevelandart.org/api/artworks/?q={query}&skip={skip_val}&limit={main_limit}&has_image=1"
             r = requests.get(url, timeout=3).json()
             return [normalize_cleveland(i) for i in r['data'] if normalize_cleveland(i)]
         except: return []
@@ -712,8 +715,8 @@ def fetch_artworks_page(query, page_num):
     def fetch_met_page():
         st.session_state.met_ids = search_met_ids_cached(query)
         if st.session_state.met_ids:
-            start_idx = (page_num - 1) * 1
-            end_idx = start_idx + 1
+            start_idx = (page_num - 1) * main_limit
+            end_idx = start_idx + main_limit
             target_ids = st.session_state.met_ids[start_idx:end_idx]
             if target_ids:
                 results = []
@@ -723,20 +726,23 @@ def fetch_artworks_page(query, page_num):
                 return results
         return []
     
+    # DİĞER KAYNAKLAR İÇİN LİMİT: 2
+    secondary_limit = 2
+    
     with concurrent.futures.ThreadPoolExecutor(max_workers=12) as executor:
         futures = {
             executor.submit(fetch_chicago): 'chicago',
             executor.submit(fetch_cleveland_page): 'cleveland',
             executor.submit(fetch_met_page): 'met',
-            executor.submit(fetch_rijksmuseum, query=query, limit=1, page=page_num): 'rijksmuseum',
-            executor.submit(fetch_harvard, query=query, limit=1, page=page_num): 'harvard',
-            executor.submit(fetch_smithsonian, query=query, limit=1, page=page_num): 'smithsonian',
-            executor.submit(fetch_europeana, query=query, limit=1, page=page_num): 'europeana',
-            executor.submit(fetch_cooper_hewitt, query=query, limit=1, page=page_num): 'cooper_hewitt',
-            executor.submit(fetch_brooklyn, query=query, limit=1, page=page_num): 'brooklyn',
-            executor.submit(fetch_va, query=query, limit=1, page=page_num): 'va',
-            executor.submit(fetch_getty, query=query, limit=1, page=page_num): 'getty',
-            executor.submit(fetch_nga, query=query, limit=1, page=page_num): 'nga'
+            executor.submit(fetch_rijksmuseum, query=query, limit=secondary_limit, page=page_num): 'rijksmuseum',
+            executor.submit(fetch_harvard, query=query, limit=secondary_limit, page=page_num): 'harvard',
+            executor.submit(fetch_smithsonian, query=query, limit=secondary_limit, page=page_num): 'smithsonian',
+            executor.submit(fetch_europeana, query=query, limit=secondary_limit, page=page_num): 'europeana',
+            executor.submit(fetch_cooper_hewitt, query=query, limit=secondary_limit, page=page_num): 'cooper_hewitt',
+            executor.submit(fetch_brooklyn, query=query, limit=secondary_limit, page=page_num): 'brooklyn',
+            executor.submit(fetch_va, query=query, limit=secondary_limit, page=page_num): 'va',
+            executor.submit(fetch_getty, query=query, limit=secondary_limit, page=page_num): 'getty',
+            executor.submit(fetch_nga, query=query, limit=secondary_limit, page=page_num): 'nga'
         }
         
         for future in concurrent.futures.as_completed(futures):
@@ -885,7 +891,7 @@ if st.session_state.view == 'detail' and st.session_state.selected_art:
     if art.get('dimensions') and art['dimensions'].strip():
         dimensions_html = f'<p><strong>Boyutlar:</strong> {art["dimensions"]}</p>'
     
-    # HTML string inşa ediliyor (Hiçbir girinti/boşluk yok)
+    # HTML string inşa ediliyor
     detail_html = f"""<div style="margin-top:10px; margin-bottom:5px;">
 <h2 style="margin:0; font-size:22px; color:#e0e0e0;">{art['title']}</h2>
 <p style="color:#d4af37; font-family:'Playfair Display',serif; font-style:italic;">{art['artist']}</p>
