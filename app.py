@@ -14,11 +14,16 @@ st.set_page_config(
 
 # --- TELEGRAM ENTEGRASYONU ---
 components.html("""
-<head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
-</head>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script>
+    // Set viewport for better zoom support
+    (function() {
+        var viewport = document.querySelector('meta[name="viewport"]');
+        if (viewport) {
+            viewport.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes');
+        }
+    })();
+    
     window.Telegram.WebApp.ready();
     window.Telegram.WebApp.expand();
     window.Telegram.WebApp.setHeaderColor('#0f0f0f');
@@ -155,7 +160,7 @@ st.markdown("""
         transition: max-height 0.3s ease, min-height 0.3s ease;
     }
     div.stButton > button {
-        transition: font-size 0.3s ease, padding 0.3s ease, background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+        transition: font-size 0.3s ease, padding 0.3s ease;
     }
     h1, h2, h3 {
         transition: font-size 0.3s ease;
