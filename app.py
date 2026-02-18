@@ -22,7 +22,6 @@ components.html("""
         if (viewport) {
             viewport.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes');
         } else {
-            // Create viewport meta tag if it doesn't exist
             var meta = document.createElement('meta');
             meta.name = 'viewport';
             meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes';
@@ -66,11 +65,13 @@ st.markdown("""
         border-top: none; 
         border-radius: 0 0 8px 8px;
         width: 100%;
-        padding: 10px;
+        padding: 12px;
         font-family: 'Inter', sans-serif;
         font-size: 14px;
         transition: all 0.3s;
         text-align: left;
+        display: flex;
+        align-items: center;
     }
     div.stButton > button:hover {
         background-color: #222;
@@ -78,25 +79,40 @@ st.markdown("""
         color: #fff;
     }
 
-    /* Daha Fazla Keşfet Butonu için özel stil */
+    /* Daha Fazla Keşfet Butonu */
     .load-more-btn button {
         background-color: #d4af37 !important;
         color: #000 !important;
         font-weight: bold !important;
         text-align: center !important;
         border-radius: 8px !important;
+        justify-content: center !important;
     }
     
-    /* Görsel Kenarları - Responsive */
-    div[data-testid="stImage"] img {
-        border-radius: 8px 8px 0 0 !important;
+    /* --- MÜZE ÇERÇEVESİ (SANAL PASPARTU) --- */
+    /* Görsel kapsayıcısını sabit bir kutuya dönüştürüyoruz */
+    div[data-testid="stImage"] {
+        background-color: #151515; /* Koyu gri mat fon (Paspartu rengi) */
         border: 1px solid #333;
         border-bottom: none;
-        object-fit: cover;
-        width: 100%;
-        height: auto;
-        max-height: 400px;
-        min-height: 200px;
+        border-radius: 8px 8px 0 0;
+        height: 350px; /* Sabit yükseklik - Müze düzeni için */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        position: relative;
+    }
+
+    /* Resmin kendisine müdahale */
+    div[data-testid="stImage"] img {
+        object-fit: contain !important; /* RESMİ KESME, SIĞDIR */
+        max-height: 100% !important;
+        max-width: 100% !important;
+        width: auto !important;
+        height: auto !important;
+        border-radius: 0 !important; /* İç resimde yuvarlak köşe istemiyoruz */
+        box-shadow: 0 4px 12px rgba(0,0,0,0.5); /* Hafif gölge */
     }
     
     /* Selectbox */
@@ -106,70 +122,12 @@ st.markdown("""
         color: white;
     }
     
-    /* Responsive Design - Media Queries for Zoom/Scale */
-    
-    /* Large screens and zoomed out (>1200px) */
-    @media (min-width: 1200px) {
-        div[data-testid="stImage"] img {
-            max-height: 450px;
-        }
-        h1, h2, h3 {
-            font-size: calc(1.2rem + 0.5vw);
-        }
-    }
-    
-    /* Medium screens and standard zoom (768px - 1199px) */
-    @media (min-width: 768px) and (max-width: 1199px) {
-        div[data-testid="stImage"] img {
-            max-height: 350px;
-        }
-        div.stButton > button {
-            font-size: 13px;
-            padding: 8px;
-        }
-    }
-    
-    /* Small screens and zoomed in (<768px) */
+    /* Responsive Ayarlar */
     @media (max-width: 767px) {
-        div[data-testid="stImage"] img {
-            max-height: 280px;
-            min-height: 180px;
+        div[data-testid="stImage"] {
+            height: 250px; /* Mobilde daha kısa kutular */
         }
-        div.stButton > button {
-            font-size: 12px;
-            padding: 8px;
-        }
-        h1, h2, h3 {
-            font-size: calc(1rem + 0.3vw);
-        }
-    }
-    
-    /* Very small screens and heavily zoomed in (<480px) */
-    @media (max-width: 480px) {
-        div[data-testid="stImage"] img {
-            max-height: 250px;
-            min-height: 150px;
-        }
-        div.stButton > button {
-            font-size: 11px;
-            padding: 6px;
-        }
-    }
-    
-    /* Ensure proper scaling on zoom - limited to layout elements for performance */
-    div, img, button, input, select {
-        box-sizing: border-box;
-    }
-    
-    /* Smooth transitions for responsive changes - optimized for performance */
-    div[data-testid="stImage"] img {
-        transition: max-height 0.3s ease, min-height 0.3s ease;
-    }
-    div.stButton > button {
-        transition: font-size 0.3s ease, padding 0.3s ease;
-    }
-    h1, h2, h3 {
-        transition: font-size 0.3s ease;
+        h1, h2, h3 { font-size: 24px !important; }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -207,6 +165,7 @@ if 'query' not in st.session_state: st.session_state.query = "Impressionism"
 if 'artworks' not in st.session_state: st.session_state.artworks = []
 if 'page' not in st.session_state: st.session_state.page = 1 
 if 'met_ids' not in st.session_state: st.session_state.met_ids = [] 
+if 'seen_ids' not in st.session_state: st.session_state.seen_ids = set() # TEKRAR KONTROLÜ İÇİN
 
 def safe_str(val):
     if val is None: return ""
@@ -862,6 +821,7 @@ with c2:
         st.session_state.query = new_topic
         st.session_state.artworks = []
         st.session_state.met_ids = []
+        st.session_state.seen_ids = set() # YENİ KONUDA RESETLE
         st.session_state.page = 1
         st.session_state.view = 'list'
         st.rerun()
@@ -916,6 +876,7 @@ else:
         st.session_state.query = filter_choice
         st.session_state.artworks = []
         st.session_state.met_ids = []
+        st.session_state.seen_ids = set() # RESET
         st.session_state.page = 1
         st.rerun()
 
@@ -925,6 +886,7 @@ else:
             st.session_state.query = search_input
             st.session_state.artworks = []
             st.session_state.met_ids = []
+            st.session_state.seen_ids = set() # RESET
             st.session_state.page = 1
             st.rerun()
 
@@ -933,7 +895,13 @@ else:
     if not st.session_state.artworks:
         with st.spinner('Küratör seçimi hazırlanıyor...'):
             initial_batch = fetch_artworks_page(st.session_state.query, 1)
-            st.session_state.artworks = initial_batch
+            # DEDUPLICATION LOGIC
+            unique_batch = []
+            for art in initial_batch:
+                if art['id'] not in st.session_state.seen_ids:
+                    unique_batch.append(art)
+                    st.session_state.seen_ids.add(art['id'])
+            st.session_state.artworks = unique_batch
 
     c1, c2 = st.columns(2)
     for i, art in enumerate(st.session_state.artworks):
@@ -961,9 +929,16 @@ else:
             st.session_state.page += 1
             with st.spinner(f"{st.session_state.page}. salon açılıyor..."):
                 new_batch = fetch_artworks_page(st.session_state.query, st.session_state.page)
-                if new_batch:
-                    st.session_state.artworks.extend(new_batch)
+                # DEDUPLICATION LOGIC (LOAD MORE)
+                unique_batch = []
+                for art in new_batch:
+                    if art['id'] not in st.session_state.seen_ids:
+                        unique_batch.append(art)
+                        st.session_state.seen_ids.add(art['id'])
+                
+                if unique_batch:
+                    st.session_state.artworks.extend(unique_batch)
                     st.rerun()
                 else:
-                    st.warning("Bu koleksiyonda daha fazla eser bulunamadı.")
+                    st.warning("Bu sayfadaki eserler zaten listelendi veya yenisi bulunamadı.")
         st.markdown('</div>', unsafe_allow_html=True)
