@@ -15,6 +15,7 @@ st.set_page_config(
 # --- TELEGRAM ENTEGRASYONU ---
 components.html("""
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
 <script>
     window.Telegram.WebApp.ready();
     window.Telegram.WebApp.expand();
@@ -73,13 +74,16 @@ st.markdown("""
         border-radius: 8px !important;
     }
     
-    /* Görsel Kenarları */
+    /* Görsel Kenarları - Responsive */
     div[data-testid="stImage"] img {
         border-radius: 8px 8px 0 0 !important;
         border: 1px solid #333;
         border-bottom: none;
         object-fit: cover;
-        height: 300px !important; /* Görselleri eşit boyda tutar */
+        width: 100%;
+        height: auto;
+        max-height: 400px;
+        min-height: 200px;
     }
     
     /* Selectbox */
@@ -87,6 +91,68 @@ st.markdown("""
         background-color: #1a1a1a;
         border-color: #333;
         color: white;
+    }
+    
+    /* Responsive Design - Media Queries for Zoom/Scale */
+    
+    /* Large screens and zoomed out (>1200px) */
+    @media (min-width: 1200px) {
+        div[data-testid="stImage"] img {
+            max-height: 450px;
+        }
+        h1, h2, h3 {
+            font-size: calc(1.2rem + 0.5vw);
+        }
+    }
+    
+    /* Medium screens and standard zoom (768px - 1199px) */
+    @media (min-width: 768px) and (max-width: 1199px) {
+        div[data-testid="stImage"] img {
+            max-height: 350px;
+        }
+        div.stButton > button {
+            font-size: 13px;
+            padding: 8px;
+        }
+    }
+    
+    /* Small screens and zoomed in (<768px) */
+    @media (max-width: 767px) {
+        div[data-testid="stImage"] img {
+            max-height: 280px;
+            min-height: 180px;
+        }
+        div.stButton > button {
+            font-size: 12px;
+            padding: 8px;
+        }
+        h1, h2, h3 {
+            font-size: calc(1rem + 0.3vw);
+        }
+    }
+    
+    /* Very small screens and heavily zoomed in (<480px) */
+    @media (max-width: 480px) {
+        div[data-testid="stImage"] img {
+            max-height: 250px;
+            min-height: 150px;
+        }
+        div.stButton > button {
+            font-size: 11px;
+            padding: 6px;
+        }
+    }
+    
+    /* Ensure proper scaling on zoom */
+    * {
+        box-sizing: border-box;
+    }
+    
+    /* Smooth transitions for responsive changes */
+    div[data-testid="stImage"] img,
+    div.stButton > button,
+    h1, h2, h3, p {
+        transition: all 0.3s ease;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -240,6 +306,21 @@ def zoomable_image_pro(src, alt):
             .btn svg {{ width: 20px; height: 20px; fill: currentColor; }}
             .fs-btn {{ position: fixed; bottom: 20px; right: 20px; background: rgba(25, 25, 25, 0.6); width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255, 255, 255, 0.1); color: white; cursor: pointer; backdrop-filter: blur(5px); z-index: 101; }}
             .fs-btn:hover {{ background: #d4af37; color: black; }}
+            
+            /* Responsive adjustments for controls */
+            @media (max-width: 768px) {{
+                .controls {{ gap: 10px; padding: 8px 15px; }}
+                .btn {{ width: 20px; height: 20px; }}
+                .btn svg {{ width: 16px; height: 16px; }}
+                .fs-btn {{ width: 35px; height: 35px; }}
+            }}
+            
+            @media (max-width: 480px) {{
+                .controls {{ bottom: 10px; gap: 8px; padding: 6px 12px; }}
+                .btn {{ width: 18px; height: 18px; }}
+                .btn svg {{ width: 14px; height: 14px; }}
+                .fs-btn {{ bottom: 10px; right: 10px; width: 32px; height: 32px; }}
+            }}
         </style>
     </head>
     <body>
