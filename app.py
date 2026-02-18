@@ -658,12 +658,13 @@ def search_met_ids_cached(query):
         pass
     return []
 
-def fetch_rijksmuseum(query, limit=2):
+def fetch_rijksmuseum(query, limit=2, page=1):
     """Fetch artworks from Rijksmuseum"""
     if RIJKS_API_KEY == "YOUR_RIJKSMUSEUM_API_KEY_HERE":
         return []
     try:
-        url = f"https://www.rijksmuseum.nl/api/en/collection?key={RIJKS_API_KEY}&q={query}&imgonly=True&ps={limit}"
+        # Rijksmuseum uses 'p' parameter for page number (1-indexed)
+        url = f"https://www.rijksmuseum.nl/api/en/collection?key={RIJKS_API_KEY}&q={query}&imgonly=True&ps={limit}&p={page}"
         r = requests.get(url, timeout=3)
         if r.status_code == 200:
             data = r.json()
@@ -673,12 +674,14 @@ def fetch_rijksmuseum(query, limit=2):
         pass
     return []
 
-def fetch_harvard(query, limit=2):
+def fetch_harvard(query, limit=2, page=1):
     """Fetch artworks from Harvard Art Museums"""
     if HARVARD_API_KEY == "YOUR_HARVARD_API_KEY_HERE":
         return []
     try:
-        url = f"https://api.harvardartmuseums.org/object?apikey={HARVARD_API_KEY}&q={query}&hasimage=1&size={limit}"
+        # Harvard uses 'from' parameter for offset (0-indexed)
+        offset = (page - 1) * limit
+        url = f"https://api.harvardartmuseums.org/object?apikey={HARVARD_API_KEY}&q={query}&hasimage=1&size={limit}&from={offset}"
         r = requests.get(url, timeout=3)
         if r.status_code == 200:
             data = r.json()
@@ -688,13 +691,14 @@ def fetch_harvard(query, limit=2):
         pass
     return []
 
-def fetch_smithsonian(query, limit=2):
+def fetch_smithsonian(query, limit=2, page=1):
     """Fetch artworks from Smithsonian Open Access"""
     if SMITHSONIAN_API_KEY == "YOUR_SMITHSONIAN_API_KEY_HERE":
         return []
     try:
-        # Smithsonian uses rows parameter for limit
-        url = f"https://api.si.edu/openaccess/api/v1.0/search?q={query}&api_key={SMITHSONIAN_API_KEY}&rows={limit}&online_media_type=Images"
+        # Smithsonian uses 'start' parameter for offset (0-indexed) and 'rows' for limit
+        start = (page - 1) * limit
+        url = f"https://api.si.edu/openaccess/api/v1.0/search?q={query}&api_key={SMITHSONIAN_API_KEY}&rows={limit}&start={start}&online_media_type=Images"
         r = requests.get(url, timeout=3)
         if r.status_code == 200:
             data = r.json()
@@ -705,12 +709,14 @@ def fetch_smithsonian(query, limit=2):
         pass
     return []
 
-def fetch_europeana(query, limit=2):
+def fetch_europeana(query, limit=2, page=1):
     """Fetch artworks from Europeana"""
     if EUROPEANA_API_KEY == "YOUR_EUROPEANA_API_KEY_HERE":
         return []
     try:
-        url = f"https://api.europeana.eu/record/v2/search.json?wskey={EUROPEANA_API_KEY}&query={query}&media=true&rows={limit}&reusability=open"
+        # Europeana uses 'start' parameter (1-indexed, where start=1 is first item)
+        start = ((page - 1) * limit) + 1
+        url = f"https://api.europeana.eu/record/v2/search.json?wskey={EUROPEANA_API_KEY}&query={query}&media=true&rows={limit}&start={start}&reusability=open"
         r = requests.get(url, timeout=3)
         if r.status_code == 200:
             data = r.json()
@@ -720,12 +726,13 @@ def fetch_europeana(query, limit=2):
         pass
     return []
 
-def fetch_cooper_hewitt(query, limit=2):
+def fetch_cooper_hewitt(query, limit=2, page=1):
     """Fetch artworks from Cooper Hewitt"""
     if COOPER_HEWITT_API_KEY == "YOUR_COOPER_HEWITT_API_KEY_HERE":
         return []
     try:
-        url = f"https://api.collection.cooperhewitt.org/rest/?method=cooperhewitt.search.collection&access_token={COOPER_HEWITT_API_KEY}&query={query}&has_images=1&per_page={limit}"
+        # Cooper Hewitt uses 'page' parameter (1-indexed)
+        url = f"https://api.collection.cooperhewitt.org/rest/?method=cooperhewitt.search.collection&access_token={COOPER_HEWITT_API_KEY}&query={query}&has_images=1&per_page={limit}&page={page}"
         r = requests.get(url, timeout=3)
         if r.status_code == 200:
             data = r.json()
@@ -735,10 +742,12 @@ def fetch_cooper_hewitt(query, limit=2):
         pass
     return []
 
-def fetch_brooklyn(query, limit=2):
+def fetch_brooklyn(query, limit=2, page=1):
     """Fetch artworks from Brooklyn Museum"""
     try:
-        url = f"https://www.brooklynmuseum.org/api/v2/object/?q={query}&has_images=1&limit={limit}"
+        # Brooklyn uses 'offset' parameter (0-indexed)
+        offset = (page - 1) * limit
+        url = f"https://www.brooklynmuseum.org/api/v2/object/?q={query}&has_images=1&limit={limit}&offset={offset}"
         r = requests.get(url, timeout=3)
         if r.status_code == 200:
             data = r.json()
@@ -748,11 +757,11 @@ def fetch_brooklyn(query, limit=2):
         pass
     return []
 
-def fetch_va(query, limit=2):
+def fetch_va(query, limit=2, page=1):
     """Fetch artworks from Victoria and Albert Museum"""
     try:
-        # V&A API search endpoint
-        url = f"https://api.vam.ac.uk/v2/objects/search?q={query}&images_exist=1&page_size={limit}"
+        # V&A uses 'page' parameter (1-indexed)
+        url = f"https://api.vam.ac.uk/v2/objects/search?q={query}&images_exist=1&page_size={limit}&page={page}"
         r = requests.get(url, timeout=3)
         if r.status_code == 200:
             data = r.json()
@@ -762,11 +771,12 @@ def fetch_va(query, limit=2):
         pass
     return []
 
-def fetch_getty(query, limit=2):
+def fetch_getty(query, limit=2, page=1):
     """Fetch artworks from The Getty Museum"""
     try:
-        # Getty uses Linked Art API
-        url = f"https://data.getty.edu/museum/collection/object/search?q={query}&limit={limit}"
+        # Getty uses Linked Art API with offset parameter
+        offset = (page - 1) * limit
+        url = f"https://data.getty.edu/museum/collection/object/search?q={query}&limit={limit}&offset={offset}"
         r = requests.get(url, timeout=3)
         if r.status_code == 200:
             data = r.json()
@@ -779,11 +789,12 @@ def fetch_getty(query, limit=2):
         pass
     return []
 
-def fetch_nga(query, limit=2):
+def fetch_nga(query, limit=2, page=1):
     """Fetch artworks from National Gallery of Art"""
     try:
-        # NGA API endpoint
-        url = f"https://api.nga.gov/art?q={query}&limit={limit}&skip=0"
+        # NGA uses 'skip' parameter for offset (0-indexed)
+        skip = (page - 1) * limit
+        url = f"https://api.nga.gov/art?q={query}&limit={limit}&skip={skip}"
         r = requests.get(url, timeout=3)
         if r.status_code == 200:
             data = r.json()
@@ -843,15 +854,15 @@ def fetch_artworks_page(query, page_num):
             executor.submit(fetch_chicago): 'chicago',
             executor.submit(fetch_cleveland_page): 'cleveland',
             executor.submit(fetch_met_page): 'met',
-            executor.submit(fetch_rijksmuseum, query, 1): 'rijksmuseum',
-            executor.submit(fetch_harvard, query, 1): 'harvard',
-            executor.submit(fetch_smithsonian, query, 1): 'smithsonian',
-            executor.submit(fetch_europeana, query, 1): 'europeana',
-            executor.submit(fetch_cooper_hewitt, query, 1): 'cooper_hewitt',
-            executor.submit(fetch_brooklyn, query, 1): 'brooklyn',
-            executor.submit(fetch_va, query, 1): 'va',
-            executor.submit(fetch_getty, query, 1): 'getty',
-            executor.submit(fetch_nga, query, 1): 'nga'
+            executor.submit(fetch_rijksmuseum, query, 1, page_num): 'rijksmuseum',
+            executor.submit(fetch_harvard, query, 1, page_num): 'harvard',
+            executor.submit(fetch_smithsonian, query, 1, page_num): 'smithsonian',
+            executor.submit(fetch_europeana, query, 1, page_num): 'europeana',
+            executor.submit(fetch_cooper_hewitt, query, 1, page_num): 'cooper_hewitt',
+            executor.submit(fetch_brooklyn, query, 1, page_num): 'brooklyn',
+            executor.submit(fetch_va, query, 1, page_num): 'va',
+            executor.submit(fetch_getty, query, 1, page_num): 'getty',
+            executor.submit(fetch_nga, query, 1, page_num): 'nga'
         }
         
         # Collect results as they complete
@@ -1069,20 +1080,20 @@ if st.session_state.view == 'detail' and st.session_state.selected_art:
         dimensions_html = f'<p><strong>Boyutlar:</strong> {art["dimensions"]}</p>'
     
     st.markdown(f"""
-    <div style="margin-top:10px; margin-bottom:5px;">
-        <h2 style="margin:0; font-size:22px; color:#e0e0e0;">{art['title']}</h2>
-        <p style="color:#d4af37; font-family:'Playfair Display',serif; font-style:italic;">{art['artist']}</p>
-    </div>
-    
-    <div style="background:#1a1a1a; padding:15px; border-radius:8px; font-size:13px; color:#aaa; margin-top:20px;">
-        <p><strong>Tarih:</strong> {art['date']}</p>
-        {dimensions_html}
-        <p><strong>Müze:</strong> {art['source']}</p>
-        {colors_html}
-        <hr style="border-color:#333;">
-        <a href="{art['link']}" target="_blank" style="color:#fff; text-decoration:none;">🔗 Müze Kaydına Git</a>
-    </div>
-    """, unsafe_allow_html=True)
+<div style="margin-top:10px; margin-bottom:5px;">
+    <h2 style="margin:0; font-size:22px; color:#e0e0e0;">{art['title']}</h2>
+    <p style="color:#d4af37; font-family:'Playfair Display',serif; font-style:italic;">{art['artist']}</p>
+</div>
+
+<div style="background:#1a1a1a; padding:15px; border-radius:8px; font-size:13px; color:#aaa; margin-top:20px;">
+    <p><strong>Tarih:</strong> {art['date']}</p>
+    {dimensions_html}
+    <p><strong>Müze:</strong> {art['source']}</p>
+    {colors_html}
+    <hr style="border-color:#333;">
+    <a href="{art['link']}" target="_blank" style="color:#fff; text-decoration:none;">🔗 Müze Kaydına Git</a>
+</div>
+""", unsafe_allow_html=True)
 
 # --- LİSTE GÖRÜNÜMÜ ---
 else:
