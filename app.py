@@ -290,7 +290,8 @@ def normalize_harvard(item):
     # Harvard uses IIIF for high-res images
     primary_img = item['primaryimageurl']
     high_res = primary_img
-    if 'ids.lib.harvard.edu' in primary_img:
+    # Properly check if URL is from Harvard's domain
+    if primary_img.startswith('https://ids.lib.harvard.edu/'):
         # Convert to IIIF full quality
         high_res = primary_img.replace('/full/full/0/default.jpg', '/full/!2048,2048/0/default.jpg')
     
