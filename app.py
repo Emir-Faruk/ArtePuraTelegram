@@ -226,15 +226,19 @@ def safe_str(val):
 def normalize_chicago(item):
     if not item.get('image_id'): return None
     iiif = "https://www.artic.edu/iiif/2"
+    image_id = item['image_id']
     return {
         'id': f"chi-{item['id']}",
         'source': 'Chicago Art Inst.',
         'title': safe_str(item.get('title')),
         'artist': safe_str(item.get('artist_display', 'Unknown').split('\n')[0]),
         'date': safe_str(item.get('date_display')),
-        'thumbnail': f"{iiif}/{item['image_id']}/full/400,/0/default.jpg",
-        'high_res': f"{iiif}/{item['image_id']}/full/1686,/0/default.jpg", 
-        'link': f"https://www.artic.edu/artworks/{item['id']}"
+        'thumbnail': f"{iiif}/{image_id}/full/400,/0/default.jpg",
+        'high_res': f"{iiif}/{image_id}/full/1686,/0/default.jpg", 
+        'link': f"https://www.artic.edu/artworks/{item['id']}",
+        'iiif_manifest': f"{iiif}/{image_id}/info.json",
+        'colors': [],
+        'dimensions': safe_str(item.get('dimensions', ''))
     }
 
 def normalize_cleveland(item):
@@ -245,6 +249,17 @@ def normalize_cleveland(item):
     high_res_url = item['images']['web']['url']
     if 'print' in item['images']: high_res_url = item['images']['print']['url']
     elif 'full' in item['images']: high_res_url = item['images']['full']['url']
+    
+    # Extract color palette if available
+    colors = []
+    if item.get('colour'):
+        color_data = item['colour']
+        if isinstance(color_data, dict):
+            # Cleveland API returns color percentages
+            for color_name, percentage in sorted(color_data.items(), key=lambda x: x[1], reverse=True)[:5]:
+                colors.append(color_name)
+    
+    dimensions = safe_str(item.get('measurements', ''))
          
     return {
         'id': f"cle-{item['id']}",
@@ -254,7 +269,10 @@ def normalize_cleveland(item):
         'date': safe_str(item.get('creation_date')),
         'thumbnail': item['images']['web']['url'],
         'high_res': high_res_url,
-        'link': item.get('url', '#')
+        'link': item.get('url', '#'),
+        'iiif_manifest': None,
+        'colors': colors,
+        'dimensions': dimensions
     }
 
 def normalize_met(item):
@@ -267,7 +285,10 @@ def normalize_met(item):
         'date': safe_str(item.get('objectDate')),
         'thumbnail': item['primaryImageSmall'],
         'high_res': item['primaryImage'],
-        'link': item.get('objectURL', '#')
+        'link': item.get('objectURL', '#'),
+        'iiif_manifest': None,
+        'colors': [],
+        'dimensions': safe_str(item.get('dimensions', ''))
     }
 
 def normalize_rijksmuseum(item):
@@ -281,7 +302,10 @@ def normalize_rijksmuseum(item):
         'date': safe_str(item.get('dating', {}).get('presentingDate', '')),
         'thumbnail': item['webImage']['url'],
         'high_res': item['webImage']['url'].replace('=s0', '=s2048'),  # Higher resolution
-        'link': item.get('links', {}).get('web', '#')
+        'link': item.get('links', {}).get('web', '#'),
+        'iiif_manifest': None,
+        'colors': [],
+        'dimensions': ''
     }
 
 def normalize_harvard(item):
@@ -290,13 +314,24 @@ def normalize_harvard(item):
     # Harvard uses IIIF for high-res images
     primary_img = item['primaryimageurl']
     high_res = primary_img
+    iiif_manifest = None
+    
     # Properly check if URL is from Harvard's domain
     if primary_img.startswith('https://ids.lib.harvard.edu/'):
         # Convert to IIIF full quality
         high_res = primary_img.replace('/full/full/0/default.jpg', '/full/!2048,2048/0/default.jpg')
+        # Extract IIIF manifest URL
+        iiif_manifest = primary_img.replace('/full/full/0/default.jpg', '/info.json')
     
     people = item.get('people', [])
     artist = people[0].get('name', 'Unknown') if people else 'Unknown'
+    
+    # Extract color data if available
+    colors = []
+    if item.get('colors'):
+        color_list = item['colors']
+        if isinstance(color_list, list):
+            colors = [c.get('color', '') for c in color_list[:5] if c.get('color')]
     
     return {
         'id': f"harvard-{item['id']}",
@@ -306,7 +341,10 @@ def normalize_harvard(item):
         'date': safe_str(item.get('dated', '')),
         'thumbnail': primary_img,
         'high_res': high_res,
-        'link': item.get('url', '#')
+        'link': item.get('url', '#'),
+        'iiif_manifest': iiif_manifest,
+        'colors': colors,
+        'dimensions': safe_str(item.get('dimensions', ''))
     }
 
 def normalize_smithsonian(item):
@@ -348,7 +386,10 @@ def normalize_smithsonian(item):
         'date': safe_str(date),
         'thumbnail': thumbnail,
         'high_res': high_res,
-        'link': descriptive_data.get('record_link', '#')
+        'link': descriptive_data.get('record_link', '#'),
+        'iiif_manifest': None,
+        'colors': [],
+        'dimensions': ''
     }
 
 def normalize_europeana(item):
@@ -380,7 +421,10 @@ def normalize_europeana(item):
         'date': safe_str(date_str),
         'thumbnail': item['edmPreview'][0] if isinstance(item['edmPreview'], list) else item['edmPreview'],
         'high_res': high_res_url,
-        'link': item.get('guid', '#')
+        'link': item.get('guid', '#'),
+        'iiif_manifest': None,
+        'colors': [],
+        'dimensions': ''
     }
 
 def normalize_cooper_hewitt(item):
@@ -413,7 +457,10 @@ def normalize_cooper_hewitt(item):
         'date': safe_str(item.get('date', '')),
         'thumbnail': thumbnail,
         'high_res': high_res,
-        'link': item.get('url', '#')
+        'link': item.get('url', '#'),
+        'iiif_manifest': None,
+        'colors': [],
+        'dimensions': ''
     }
 
 def normalize_brooklyn(item):
@@ -441,7 +488,10 @@ def normalize_brooklyn(item):
         'date': safe_str(item.get('object_date', '')),
         'thumbnail': largest,
         'high_res': largest,
-        'link': f"https://www.brooklynmuseum.org/opencollection/objects/{item.get('id', '')}"
+        'link': f"https://www.brooklynmuseum.org/opencollection/objects/{item.get('id', '')}",
+        'iiif_manifest': None,
+        'colors': [],
+        'dimensions': ''
     }
 
 def normalize_va(item):
@@ -470,7 +520,118 @@ def normalize_va(item):
         'date': safe_str(date_str),
         'thumbnail': f"{base_iiif}/full/!400,400/0/default.jpg",
         'high_res': f"{base_iiif}/full/!2048,2048/0/default.jpg",
-        'link': f"https://collections.vam.ac.uk/item/{item.get('systemNumber', '')}"
+        'link': f"https://collections.vam.ac.uk/item/{item.get('systemNumber', '')}",
+        'iiif_manifest': f"{base_iiif}/info.json",
+        'colors': [],
+        'dimensions': ''
+    }
+
+def normalize_getty(item):
+    """Getty Museum API normalization"""
+    # Getty uses Linked Art JSON-LD format
+    if not item.get('_label'): return None
+    
+    # Get image URL - Getty uses IIIF
+    iiif_manifest = None
+    thumbnail = ''
+    high_res = ''
+    
+    if item.get('representation'):
+        representations = item['representation'] if isinstance(item['representation'], list) else [item['representation']]
+        if representations and representations[0].get('id'):
+            iiif_base = representations[0]['id']
+            # Getty IIIF format
+            if 'iiif' in iiif_base:
+                iiif_manifest = iiif_base.replace('/full/full/0/default.jpg', '/info.json')
+                thumbnail = iiif_base.replace('/full/full/0/default.jpg', '/full/400,/0/default.jpg')
+                high_res = iiif_base.replace('/full/full/0/default.jpg', '/full/2048,/0/default.jpg')
+            else:
+                thumbnail = iiif_base
+                high_res = iiif_base
+    
+    if not thumbnail: return None
+    
+    # Get artist
+    artist = 'Unknown'
+    if item.get('produced_by') and item['produced_by'].get('carried_out_by'):
+        creators = item['produced_by']['carried_out_by']
+        if isinstance(creators, list) and creators:
+            artist = creators[0].get('_label', 'Unknown')
+        elif isinstance(creators, dict):
+            artist = creators.get('_label', 'Unknown')
+    
+    # Get date
+    date_str = ''
+    if item.get('produced_by') and item['produced_by'].get('timespan'):
+        timespan = item['produced_by']['timespan']
+        if isinstance(timespan, list) and timespan:
+            date_str = timespan[0].get('_label', '')
+        elif isinstance(timespan, dict):
+            date_str = timespan.get('_label', '')
+    
+    # Get dimensions
+    dimensions = ''
+    if item.get('dimension'):
+        dims = item['dimension'] if isinstance(item['dimension'], list) else [item['dimension']]
+        dimensions = ', '.join([d.get('_label', '') for d in dims if d.get('_label')])
+    
+    return {
+        'id': f"getty-{item.get('id', '').split('/')[-1]}",
+        'source': 'The Getty',
+        'title': safe_str(item.get('_label')),
+        'artist': safe_str(artist),
+        'date': safe_str(date_str),
+        'thumbnail': thumbnail,
+        'high_res': high_res,
+        'link': item.get('id', '#'),
+        'iiif_manifest': iiif_manifest,
+        'colors': [],
+        'dimensions': dimensions
+    }
+
+def normalize_nga(item):
+    """National Gallery of Art API normalization"""
+    if not item.get('iiifthumburl'): return None
+    
+    # NGA provides IIIF URLs
+    thumbnail = item['iiifthumburl']
+    iiif_manifest = None
+    high_res = thumbnail
+    
+    # Extract IIIF base URL for high-res
+    if 'iiif' in thumbnail:
+        # NGA IIIF format
+        base_parts = thumbnail.split('/full/')
+        if len(base_parts) > 1:
+            iiif_base = base_parts[0]
+            iiif_manifest = f"{iiif_base}/info.json"
+            high_res = f"{iiif_base}/full/!2048,2048/0/default.jpg"
+    
+    # Get artist
+    artist = safe_str(item.get('attribution', 'Unknown'))
+    
+    # Get title
+    title = safe_str(item.get('title', 'Untitled'))
+    
+    # Get date
+    date_str = ''
+    if item.get('displaydate'):
+        date_str = safe_str(item['displaydate'])
+    elif item.get('beginyear') and item.get('endyear'):
+        date_str = f"{item['beginyear']}-{item['endyear']}"
+    
+    return {
+        'id': f"nga-{item.get('objectid', '')}",
+        'source': 'National Gallery (US)',
+        'title': title,
+        'artist': artist,
+        'date': date_str,
+        'thumbnail': thumbnail,
+        'high_res': high_res,
+        'link': f"https://www.nga.gov/collection/art-object-page.{item.get('objectid', '')}.html",
+        'iiif_manifest': iiif_manifest,
+        'colors': [],
+        'dimensions': safe_str(item.get('dimensions', ''))
     }
 
 # --- GELİŞMİŞ VERİ ÇEKME MOTORU ---
@@ -601,8 +762,39 @@ def fetch_va(query, limit=2):
         pass
     return []
 
+def fetch_getty(query, limit=2):
+    """Fetch artworks from The Getty Museum"""
+    try:
+        # Getty uses Linked Art API
+        url = f"https://data.getty.edu/museum/collection/object/search?q={query}&limit={limit}"
+        r = requests.get(url, timeout=3)
+        if r.status_code == 200:
+            data = r.json()
+            # Getty returns items in orderedItems array
+            items = data.get('orderedItems', [])
+            if not items and data.get('@graph'):
+                items = data['@graph']
+            return [normalize_getty(art) for art in items if normalize_getty(art)]
+    except Exception:
+        pass
+    return []
+
+def fetch_nga(query, limit=2):
+    """Fetch artworks from National Gallery of Art"""
+    try:
+        # NGA API endpoint
+        url = f"https://api.nga.gov/art?q={query}&limit={limit}&skip=0"
+        r = requests.get(url, timeout=3)
+        if r.status_code == 200:
+            data = r.json()
+            records = data.get('data', [])
+            return [normalize_nga(art) for art in records if normalize_nga(art)]
+    except Exception:
+        pass
+    return []
+
 def fetch_artworks_page(query, page_num):
-    """Belirli bir sayfadaki eserleri getirir - Tüm 10 API'den paralel çeker"""
+    """Fetches artworks for a specific page - parallel fetching from all 12 APIs"""
     new_artworks = []
     
     # Define all API fetch tasks
@@ -645,7 +837,7 @@ def fetch_artworks_page(query, page_num):
         return []
     
     # Use ThreadPoolExecutor to fetch from all APIs in parallel
-    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=12) as executor:
         # Submit all tasks
         futures = {
             executor.submit(fetch_chicago): 'chicago',
@@ -657,7 +849,9 @@ def fetch_artworks_page(query, page_num):
             executor.submit(fetch_europeana, query, 1): 'europeana',
             executor.submit(fetch_cooper_hewitt, query, 1): 'cooper_hewitt',
             executor.submit(fetch_brooklyn, query, 1): 'brooklyn',
-            executor.submit(fetch_va, query, 1): 'va'
+            executor.submit(fetch_va, query, 1): 'va',
+            executor.submit(fetch_getty, query, 1): 'getty',
+            executor.submit(fetch_nga, query, 1): 'nga'
         }
         
         # Collect results as they complete
@@ -674,63 +868,156 @@ def fetch_artworks_page(query, page_num):
     return new_artworks
 
 # --- 3. PRO ZOOM BILEŞENI ---
-def zoomable_image_pro(src, alt):
-    html_code = f"""
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-        <script src="https://unpkg.com/@panzoom/panzoom@4.5.1/dist/panzoom.min.js"></script>
-        <style>
-            html, body {{ margin: 0; padding: 0; background-color: #000; height: 100vh; width: 100vw; overflow: hidden; }}
-            #scene {{ width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; }}
-            img {{ max-width: 100%; max-height: 100%; object-fit: contain; cursor: grab; }}
-            img:active {{ cursor: grabbing; }}
-            .controls {{ position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 15px; background: rgba(25, 25, 25, 0.8); padding: 10px 20px; border-radius: 30px; backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); z-index: 100; }}
-            .btn {{ background: transparent; border: none; color: #e0e0e0; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; }}
-            .btn:hover {{ color: #d4af37; transform: scale(1.1); }}
-            .btn svg {{ width: 20px; height: 20px; fill: currentColor; }}
-            .fs-btn {{ position: fixed; bottom: 20px; right: 20px; background: rgba(25, 25, 25, 0.6); width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255, 255, 255, 0.1); color: white; cursor: pointer; backdrop-filter: blur(5px); z-index: 101; }}
-            .fs-btn:hover {{ background: #d4af37; color: black; }}
-            
-            /* Responsive adjustments for controls */
-            @media (max-width: 768px) {{
-                .controls {{ gap: 10px; padding: 8px 15px; }}
-                .btn {{ width: 20px; height: 20px; }}
-                .btn svg {{ width: 16px; height: 16px; }}
-                .fs-btn {{ width: 35px; height: 35px; }}
-            }}
-            
-            @media (max-width: 480px) {{
-                .controls {{ bottom: 10px; gap: 8px; padding: 6px 12px; }}
-                .btn {{ width: 18px; height: 18px; }}
-                .btn svg {{ width: 14px; height: 14px; }}
-                .fs-btn {{ bottom: 10px; right: 10px; width: 32px; height: 32px; }}
-            }}
-        </style>
-    </head>
-    <body>
-        <div id="scene"><img src="{src}" alt="{alt}" id="target"></div>
-        <div class="controls">
-            <button class="btn" id="zoom-out"><svg viewBox="0 0 24 24"><path d="M19 13H5v-2h14v2z"/></svg></button>
-            <button class="btn" id="reset"><svg viewBox="0 0 24 24"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0020 12c0-4.42-3.58-8-7.99-8z"/></svg></button>
-            <button class="btn" id="zoom-in"><svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></button>
-        </div>
-        <button class="fs-btn" id="fullscreen"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg></button>
-        <script>
-            const elem = document.getElementById('target');
-            const panzoom = Panzoom(elem, {{ maxScale: 5, minScale: 0.5, contain: false, startScale: 1, animate: true }});
-            elem.onload = function() {{ panzoom.reset(); }};
-            document.getElementById('scene').addEventListener('wheel', panzoom.zoomWithWheel);
-            document.getElementById('zoom-in').addEventListener('click', panzoom.zoomIn);
-            document.getElementById('zoom-out').addEventListener('click', panzoom.zoomOut);
-            document.getElementById('reset').addEventListener('click', panzoom.reset);
-            document.getElementById('fullscreen').addEventListener('click', function() {{ if (!document.fullscreenElement) {{ document.body.requestFullscreen(); }} else {{ document.exitFullscreen(); }} }});
-        </script>
-    </body>
-    </html>
+def zoomable_image_pro(src, alt, iiif_manifest=None):
     """
+    Advanced zoom component with OpenSeadragon for IIIF support.
+    Falls back to simple image if no IIIF manifest is provided.
+    """
+    if iiif_manifest:
+        # Use OpenSeadragon with IIIF
+        html_code = f"""
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+            <script src="https://cdn.jsdelivr.net/npm/openseadragon@4.1.0/build/openseadragon/openseadragon.min.js"></script>
+            <style>
+                html, body {{ margin: 0; padding: 0; background-color: #000; height: 100vh; width: 100vw; overflow: hidden; }}
+                #openseadragon {{ width: 100vw; height: 100vh; }}
+                .controls {{ position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 15px; background: rgba(25, 25, 25, 0.8); padding: 10px 20px; border-radius: 30px; backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); z-index: 100; }}
+                .btn {{ background: transparent; border: none; color: #e0e0e0; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; transition: all 0.2s; }}
+                .btn:hover {{ color: #d4af37; transform: scale(1.1); }}
+                .btn svg {{ width: 20px; height: 20px; fill: currentColor; }}
+                .fs-btn {{ position: fixed; bottom: 20px; right: 20px; background: rgba(25, 25, 25, 0.6); width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255, 255, 255, 0.1); color: white; cursor: pointer; backdrop-filter: blur(5px); z-index: 101; transition: all 0.2s; }}
+                .fs-btn:hover {{ background: #d4af37; color: black; }}
+                
+                /* Responsive adjustments */
+                @media (max-width: 768px) {{
+                    .controls {{ gap: 10px; padding: 8px 15px; }}
+                    .btn {{ width: 20px; height: 20px; }}
+                    .btn svg {{ width: 16px; height: 16px; }}
+                    .fs-btn {{ width: 35px; height: 35px; }}
+                }}
+                
+                @media (max-width: 480px) {{
+                    .controls {{ bottom: 10px; gap: 8px; padding: 6px 12px; }}
+                    .btn {{ width: 18px; height: 18px; }}
+                    .btn svg {{ width: 14px; height: 14px; }}
+                    .fs-btn {{ bottom: 10px; right: 10px; width: 32px; height: 32px; }}
+                }}
+            </style>
+        </head>
+        <body>
+            <div id="openseadragon"></div>
+            <div class="controls">
+                <button class="btn" id="zoom-out"><svg viewBox="0 0 24 24"><path d="M19 13H5v-2h14v2z"/></svg></button>
+                <button class="btn" id="home"><svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg></button>
+                <button class="btn" id="zoom-in"><svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></button>
+            </div>
+            <button class="fs-btn" id="fullscreen"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg></button>
+            <script>
+                var viewer = OpenSeadragon({{
+                    id: "openseadragon",
+                    prefixUrl: "https://cdn.jsdelivr.net/npm/openseadragon@4.1.0/build/openseadragon/images/",
+                    tileSources: "{iiif_manifest}",
+                    showNavigationControl: false,
+                    gestureSettingsMouse: {{
+                        clickToZoom: false,
+                        dblClickToZoom: true
+                    }},
+                    gestureSettingsTouch: {{
+                        pinchToZoom: true
+                    }},
+                    minZoomLevel: 0.5,
+                    maxZoomLevel: 10,
+                    visibilityRatio: 0.2,
+                    constrainDuringPan: false,
+                    animationTime: 0.5
+                }});
+                
+                document.getElementById('zoom-in').addEventListener('click', function() {{
+                    viewer.viewport.zoomBy(1.3);
+                    viewer.viewport.applyConstraints();
+                }});
+                
+                document.getElementById('zoom-out').addEventListener('click', function() {{
+                    viewer.viewport.zoomBy(0.7);
+                    viewer.viewport.applyConstraints();
+                }});
+                
+                document.getElementById('home').addEventListener('click', function() {{
+                    viewer.viewport.goHome();
+                }});
+                
+                document.getElementById('fullscreen').addEventListener('click', function() {{
+                    if (!document.fullscreenElement) {{
+                        document.body.requestFullscreen();
+                    }} else {{
+                        document.exitFullscreen();
+                    }}
+                }});
+            </script>
+        </body>
+        </html>
+        """
+    else:
+        # Fallback to Panzoom for non-IIIF images
+        html_code = f"""
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+            <script src="https://unpkg.com/@panzoom/panzoom@4.5.1/dist/panzoom.min.js"></script>
+            <style>
+                html, body {{ margin: 0; padding: 0; background-color: #000; height: 100vh; width: 100vw; overflow: hidden; }}
+                #scene {{ width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; }}
+                img {{ max-width: 100%; max-height: 100%; object-fit: contain; cursor: grab; }}
+                img:active {{ cursor: grabbing; }}
+                .controls {{ position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 15px; background: rgba(25, 25, 25, 0.8); padding: 10px 20px; border-radius: 30px; backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); z-index: 100; }}
+                .btn {{ background: transparent; border: none; color: #e0e0e0; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; }}
+                .btn:hover {{ color: #d4af37; transform: scale(1.1); }}
+                .btn svg {{ width: 20px; height: 20px; fill: currentColor; }}
+                .fs-btn {{ position: fixed; bottom: 20px; right: 20px; background: rgba(25, 25, 25, 0.6); width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255, 255, 255, 0.1); color: white; cursor: pointer; backdrop-filter: blur(5px); z-index: 101; }}
+                .fs-btn:hover {{ background: #d4af37; color: black; }}
+                
+                @media (max-width: 768px) {{
+                    .controls {{ gap: 10px; padding: 8px 15px; }}
+                    .btn {{ width: 20px; height: 20px; }}
+                    .btn svg {{ width: 16px; height: 16px; }}
+                    .fs-btn {{ width: 35px; height: 35px; }}
+                }}
+                
+                @media (max-width: 480px) {{
+                    .controls {{ bottom: 10px; gap: 8px; padding: 6px 12px; }}
+                    .btn {{ width: 18px; height: 18px; }}
+                    .btn svg {{ width: 14px; height: 14px; }}
+                    .fs-btn {{ bottom: 10px; right: 10px; width: 32px; height: 32px; }}
+                }}
+            </style>
+        </head>
+        <body>
+            <div id="scene"><img src="{src}" alt="{alt}" id="target"></div>
+            <div class="controls">
+                <button class="btn" id="zoom-out"><svg viewBox="0 0 24 24"><path d="M19 13H5v-2h14v2z"/></svg></button>
+                <button class="btn" id="reset"><svg viewBox="0 0 24 24"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0020 12c0-4.42-3.58-8-7.99-8z"/></svg></button>
+                <button class="btn" id="zoom-in"><svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></button>
+            </div>
+            <button class="fs-btn" id="fullscreen"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg></button>
+            <script>
+                const elem = document.getElementById('target');
+                const panzoom = Panzoom(elem, {{ maxScale: 5, minScale: 0.5, contain: false, startScale: 1, animate: true }});
+                elem.onload = function() {{ panzoom.reset(); }};
+                document.getElementById('scene').addEventListener('wheel', panzoom.zoomWithWheel);
+                document.getElementById('zoom-in').addEventListener('click', panzoom.zoomIn);
+                document.getElementById('zoom-out').addEventListener('click', panzoom.zoomOut);
+                document.getElementById('reset').addEventListener('click', panzoom.reset);
+                document.getElementById('fullscreen').addEventListener('click', function() {{ if (!document.fullscreenElement) {{ document.body.requestFullscreen(); }} else {{ document.exitFullscreen(); }} }});
+            </script>
+        </body>
+        </html>
+        """
     components.html(html_code, height=650)
 
 
@@ -759,7 +1046,27 @@ if st.session_state.view == 'detail' and st.session_state.selected_art:
         st.session_state.view = 'list'
         st.rerun()
 
-    zoomable_image_pro(art['high_res'], art['title'])
+    # Pass IIIF manifest if available for deep zoom
+    iiif_manifest = art.get('iiif_manifest', None)
+    zoomable_image_pro(art['high_res'], art['title'], iiif_manifest)
+    
+    # Build color swatches HTML if colors are available
+    colors_html = ""
+    if art.get('colors') and len(art['colors']) > 0:
+        colors_html = '<div style="margin-top:10px;"><strong>Renk Paleti:</strong><div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">'
+        for color in art['colors'][:5]:
+            # Handle both hex colors and named colors
+            if color.startswith('#'):
+                colors_html += f'<div style="width:30px; height:30px; background:{color}; border-radius:4px; border:1px solid #555;" title="{color}"></div>'
+            else:
+                # For named colors, display as tags
+                colors_html += f'<span style="background:#2a2a2a; color:#d4af37; padding:4px 10px; border-radius:12px; font-size:11px; border:1px solid #444;">{color}</span>'
+        colors_html += '</div></div>'
+    
+    # Build dimensions HTML if available
+    dimensions_html = ""
+    if art.get('dimensions') and art['dimensions'].strip():
+        dimensions_html = f'<p><strong>Boyutlar:</strong> {art["dimensions"]}</p>'
     
     st.markdown(f"""
     <div style="margin-top:10px; margin-bottom:5px;">
@@ -769,7 +1076,9 @@ if st.session_state.view == 'detail' and st.session_state.selected_art:
     
     <div style="background:#1a1a1a; padding:15px; border-radius:8px; font-size:13px; color:#aaa; margin-top:20px;">
         <p><strong>Tarih:</strong> {art['date']}</p>
+        {dimensions_html}
         <p><strong>Müze:</strong> {art['source']}</p>
+        {colors_html}
         <hr style="border-color:#333;">
         <a href="{art['link']}" target="_blank" style="color:#fff; text-decoration:none;">🔗 Müze Kaydına Git</a>
     </div>
