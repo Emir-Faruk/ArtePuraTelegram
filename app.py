@@ -175,10 +175,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- 2. API ANAHTARLARI ---
-# API anahtarlarını Streamlit secrets'tan veya buradan alın
-# Streamlit Cloud kullanıyorsanız: st.secrets["API_KEYS"]["rijksmuseum"] şeklinde erişin
-# Yerel test için bu değişkenlere anahtarlarınızı ekleyin
-
 try:
     RIJKS_API_KEY = st.secrets["API_KEYS"]["rijksmuseum"]
 except Exception:
@@ -204,17 +200,13 @@ try:
 except Exception:
     COOPER_HEWITT_API_KEY = "YOUR_COOPER_HEWITT_API_KEY_HERE"  # https://collection.cooperhewitt.org/api/
 
-# Brooklyn Museum and V&A do not require API keys for basic access
-
 # --- 3. YARDIMCI FONKSİYONLAR VE STATE ---
-
-# State Başlatma
 if 'view' not in st.session_state: st.session_state.view = 'list'
 if 'selected_art' not in st.session_state: st.session_state.selected_art = None
 if 'query' not in st.session_state: st.session_state.query = "Impressionism"
 if 'artworks' not in st.session_state: st.session_state.artworks = []
-if 'page' not in st.session_state: st.session_state.page = 1 # Sayfa Sayacı
-if 'met_ids' not in st.session_state: st.session_state.met_ids = [] # Met ID Cache
+if 'page' not in st.session_state: st.session_state.page = 1 
+if 'met_ids' not in st.session_state: st.session_state.met_ids = [] 
 
 def safe_str(val):
     if val is None: return ""
@@ -222,7 +214,6 @@ def safe_str(val):
     return str(val)
 
 # --- API NORMALİZASYON ---
-
 def normalize_chicago(item):
     if not item.get('image_id'): return None
     iiif = "https://www.artic.edu/iiif/2"
@@ -250,12 +241,10 @@ def normalize_cleveland(item):
     if 'print' in item['images']: high_res_url = item['images']['print']['url']
     elif 'full' in item['images']: high_res_url = item['images']['full']['url']
     
-    # Extract color palette if available
     colors = []
     if item.get('colour'):
         color_data = item['colour']
         if isinstance(color_data, dict):
-            # Cleveland API returns color percentages
             for color_name, percentage in sorted(color_data.items(), key=lambda x: x[1], reverse=True)[:5]:
                 colors.append(color_name)
     
@@ -292,7 +281,6 @@ def normalize_met(item):
     }
 
 def normalize_rijksmuseum(item):
-    """Rijksmuseum API normalization"""
     if not item.get('webImage'): return None
     return {
         'id': f"rijks-{item.get('objectNumber', '')}",
@@ -301,7 +289,7 @@ def normalize_rijksmuseum(item):
         'artist': safe_str(item.get('principalOrFirstMaker', 'Unknown')),
         'date': safe_str(item.get('dating', {}).get('presentingDate', '')),
         'thumbnail': item['webImage']['url'],
-        'high_res': item['webImage']['url'].replace('=s0', '=s2048'),  # Higher resolution
+        'high_res': item['webImage']['url'].replace('=s0', '=s2048'),
         'link': item.get('links', {}).get('web', '#'),
         'iiif_manifest': None,
         'colors': [],
@@ -309,24 +297,18 @@ def normalize_rijksmuseum(item):
     }
 
 def normalize_harvard(item):
-    """Harvard Art Museums API normalization"""
     if not item.get('primaryimageurl'): return None
-    # Harvard uses IIIF for high-res images
     primary_img = item['primaryimageurl']
     high_res = primary_img
     iiif_manifest = None
     
-    # Properly check if URL is from Harvard's domain
     if primary_img.startswith('https://ids.lib.harvard.edu/'):
-        # Convert to IIIF full quality
         high_res = primary_img.replace('/full/full/0/default.jpg', '/full/!2048,2048/0/default.jpg')
-        # Extract IIIF manifest URL
         iiif_manifest = primary_img.replace('/full/full/0/default.jpg', '/info.json')
     
     people = item.get('people', [])
     artist = people[0].get('name', 'Unknown') if people else 'Unknown'
     
-    # Extract color data if available
     colors = []
     if item.get('colors'):
         color_list = item['colors']
@@ -348,33 +330,27 @@ def normalize_harvard(item):
     }
 
 def normalize_smithsonian(item):
-    """Smithsonian Open Access API normalization"""
     content = item.get('content', {})
     descriptive_data = content.get('descriptiveNonRepeating', {})
     indexed_data = content.get('indexedStructured', {})
     
-    # Get image URL
     online_media = descriptive_data.get('online_media', {})
     media_list = online_media.get('media', [])
     if not media_list: return None
     
     image_data = media_list[0]
     thumbnail = image_data.get('thumbnail', '')
-    # Try to get higher resolution
     resources = image_data.get('resources', [])
     high_res = thumbnail
     if resources:
-        # Find largest available
         for res in resources:
             if res.get('url'):
                 high_res = res['url']
                 break
     
-    # Get artist
     name_data = indexed_data.get('name', [])
     artist = name_data[0] if name_data else 'Unknown'
     
-    # Get date
     date_data = indexed_data.get('date', [])
     date = date_data[0] if date_data else ''
     
@@ -393,23 +369,17 @@ def normalize_smithsonian(item):
     }
 
 def normalize_europeana(item):
-    """Europeana REST API normalization"""
-    # Europeana has complex structure
     if not item.get('edmPreview'): return None
     
-    # Get artist from dcCreator
     creator = item.get('dcCreator', ['Unknown'])
     artist = creator[0] if isinstance(creator, list) else creator
     
-    # Get date
     date = item.get('year', [''])
     date_str = date[0] if isinstance(date, list) else date
     
-    # Get title
     title = item.get('title', ['Untitled'])
     title_str = title[0] if isinstance(title, list) else title
     
-    # For high-res, try edmIsShownBy or use preview
     high_res = item.get('edmIsShownBy', [item['edmPreview']])
     high_res_url = high_res[0] if isinstance(high_res, list) else high_res
     
@@ -428,22 +398,17 @@ def normalize_europeana(item):
     }
 
 def normalize_cooper_hewitt(item):
-    """Cooper Hewitt API normalization"""
     if not item.get('images'): return None
-    
     images = item['images']
     if not images: return None
     
-    # Get first image
     image = images[0]
     base_url = image.get('b', {}).get('url', '')
     if not base_url: return None
     
-    # Cooper Hewitt provides different sizes
     thumbnail = image.get('sq', {}).get('url', base_url)
-    high_res = image.get('z', {}).get('url', base_url)  # 'z' is largest
+    high_res = image.get('z', {}).get('url', base_url) 
     
-    # Get artist
     participants = item.get('participants', [])
     artist = 'Unknown'
     if participants:
@@ -464,17 +429,13 @@ def normalize_cooper_hewitt(item):
     }
 
 def normalize_brooklyn(item):
-    """Brooklyn Museum API normalization"""
     if not item.get('images'): return None
-    
     images = item['images']
     if not images: return None
     
-    # Get largest image
     largest = images[0].get('largest_derivative_url', '')
     if not largest: return None
     
-    # Get artist
     artists = item.get('artists', [])
     artist = 'Unknown'
     if artists:
@@ -495,19 +456,14 @@ def normalize_brooklyn(item):
     }
 
 def normalize_va(item):
-    """Victoria and Albert Museum API normalization"""
     if not item.get('_primaryImageId'): return None
-    
     image_id = item['_primaryImageId']
-    # V&A IIIF image service
     base_iiif = f"https://framemark.vam.ac.uk/collections/{image_id}"
     
-    # Get artist
     artist_name = 'Unknown'
     if item.get('_primaryMaker'):
         artist_name = item['_primaryMaker'].get('name', 'Unknown')
     
-    # Get date
     date_str = ''
     if item.get('_primaryDate'):
         date_str = item['_primaryDate']
@@ -527,11 +483,7 @@ def normalize_va(item):
     }
 
 def normalize_getty(item):
-    """Getty Museum API normalization"""
-    # Getty uses Linked Art JSON-LD format
     if not item.get('_label'): return None
-    
-    # Get image URL - Getty uses IIIF
     iiif_manifest = None
     thumbnail = ''
     high_res = ''
@@ -540,7 +492,6 @@ def normalize_getty(item):
         representations = item['representation'] if isinstance(item['representation'], list) else [item['representation']]
         if representations and representations[0].get('id'):
             iiif_base = representations[0]['id']
-            # Getty IIIF format
             if 'iiif' in iiif_base:
                 iiif_manifest = iiif_base.replace('/full/full/0/default.jpg', '/info.json')
                 thumbnail = iiif_base.replace('/full/full/0/default.jpg', '/full/400,/0/default.jpg')
@@ -551,7 +502,6 @@ def normalize_getty(item):
     
     if not thumbnail: return None
     
-    # Get artist
     artist = 'Unknown'
     if item.get('produced_by') and item['produced_by'].get('carried_out_by'):
         creators = item['produced_by']['carried_out_by']
@@ -560,7 +510,6 @@ def normalize_getty(item):
         elif isinstance(creators, dict):
             artist = creators.get('_label', 'Unknown')
     
-    # Get date
     date_str = ''
     if item.get('produced_by') and item['produced_by'].get('timespan'):
         timespan = item['produced_by']['timespan']
@@ -569,7 +518,6 @@ def normalize_getty(item):
         elif isinstance(timespan, dict):
             date_str = timespan.get('_label', '')
     
-    # Get dimensions
     dimensions = ''
     if item.get('dimension'):
         dims = item['dimension'] if isinstance(item['dimension'], list) else [item['dimension']]
@@ -590,30 +538,21 @@ def normalize_getty(item):
     }
 
 def normalize_nga(item):
-    """National Gallery of Art API normalization"""
     if not item.get('iiifthumburl'): return None
-    
-    # NGA provides IIIF URLs
     thumbnail = item['iiifthumburl']
     iiif_manifest = None
     high_res = thumbnail
     
-    # Extract IIIF base URL for high-res
     if 'iiif' in thumbnail:
-        # NGA IIIF format
         base_parts = thumbnail.split('/full/')
         if len(base_parts) > 1:
             iiif_base = base_parts[0]
             iiif_manifest = f"{iiif_base}/info.json"
             high_res = f"{iiif_base}/full/!2048,2048/0/default.jpg"
     
-    # Get artist
     artist = safe_str(item.get('attribution', 'Unknown'))
-    
-    # Get title
     title = safe_str(item.get('title', 'Untitled'))
     
-    # Get date
     date_str = ''
     if item.get('displaydate'):
         date_str = safe_str(item['displaydate'])
@@ -635,9 +574,7 @@ def normalize_nga(item):
     }
 
 # --- GELİŞMİŞ VERİ ÇEKME MOTORU ---
-
 def fetch_met_details(object_id):
-    """Tek bir Met objesinin detayını çeker"""
     try:
         r = requests.get(f"https://collectionapi.metmuseum.org/public/collection/v1/objects/{object_id}", timeout=2)
         if r.status_code == 200:
@@ -645,177 +582,124 @@ def fetch_met_details(object_id):
     except:
         return None
 
-# Met ID'lerini bir kez çekip cache'liyoruz, böylece her sayfa yüklemesinde arama yapmıyoruz
-@st.cache_data(ttl=3600)
+# st.cache_data kullanarak query başına cache işlemi yapıyoruz
+@st.cache_data(ttl=3600, show_spinner=False)
 def search_met_ids_cached(query):
     try:
         search_url = f"https://collectionapi.metmuseum.org/public/collection/v1/search?q={query}&hasImages=true&isPublicDomain=true"
         r = requests.get(search_url, timeout=4).json()
         ids = r.get('objectIDs', [])
         if ids:
-            return ids[:300] # En fazla 300 ID saklayalım performans için
+            return ids[:300]
     except:
         pass
     return []
 
-def fetch_rijksmuseum(query, limit=2, page=1):
-    """Fetch artworks from Rijksmuseum"""
-    if RIJKS_API_KEY == "YOUR_RIJKSMUSEUM_API_KEY_HERE":
-        return []
+def fetch_rijksmuseum(query, limit=1, page=1):
+    if RIJKS_API_KEY == "YOUR_RIJKSMUSEUM_API_KEY_HERE": return []
     try:
-        # Rijksmuseum uses 'p' parameter for page number (1-indexed)
         url = f"https://www.rijksmuseum.nl/api/en/collection?key={RIJKS_API_KEY}&q={query}&imgonly=True&ps={limit}&p={page}"
         r = requests.get(url, timeout=3)
         if r.status_code == 200:
-            data = r.json()
-            artworks = data.get('artObjects', [])
-            return [normalize_rijksmuseum(art) for art in artworks if normalize_rijksmuseum(art)]
-    except Exception:
-        pass
+            return [normalize_rijksmuseum(art) for art in r.json().get('artObjects', []) if normalize_rijksmuseum(art)]
+    except: pass
     return []
 
-def fetch_harvard(query, limit=2, page=1):
-    """Fetch artworks from Harvard Art Museums"""
-    if HARVARD_API_KEY == "YOUR_HARVARD_API_KEY_HERE":
-        return []
+def fetch_harvard(query, limit=1, page=1):
+    if HARVARD_API_KEY == "YOUR_HARVARD_API_KEY_HERE": return []
     try:
-        # Harvard uses 'from' parameter for offset (0-indexed)
         offset = (page - 1) * limit
         url = f"https://api.harvardartmuseums.org/object?apikey={HARVARD_API_KEY}&q={query}&hasimage=1&size={limit}&from={offset}"
         r = requests.get(url, timeout=3)
         if r.status_code == 200:
-            data = r.json()
-            records = data.get('records', [])
-            return [normalize_harvard(art) for art in records if normalize_harvard(art)]
-    except Exception:
-        pass
+            return [normalize_harvard(art) for art in r.json().get('records', []) if normalize_harvard(art)]
+    except: pass
     return []
 
-def fetch_smithsonian(query, limit=2, page=1):
-    """Fetch artworks from Smithsonian Open Access"""
-    if SMITHSONIAN_API_KEY == "YOUR_SMITHSONIAN_API_KEY_HERE":
-        return []
+def fetch_smithsonian(query, limit=1, page=1):
+    if SMITHSONIAN_API_KEY == "YOUR_SMITHSONIAN_API_KEY_HERE": return []
     try:
-        # Smithsonian uses 'start' parameter for offset (0-indexed) and 'rows' for limit
         start = (page - 1) * limit
         url = f"https://api.si.edu/openaccess/api/v1.0/search?q={query}&api_key={SMITHSONIAN_API_KEY}&rows={limit}&start={start}&online_media_type=Images"
         r = requests.get(url, timeout=3)
         if r.status_code == 200:
-            data = r.json()
-            response = data.get('response', {})
-            rows = response.get('rows', [])
-            return [normalize_smithsonian(art) for art in rows if normalize_smithsonian(art)]
-    except Exception:
-        pass
+            return [normalize_smithsonian(art) for art in r.json().get('response', {}).get('rows', []) if normalize_smithsonian(art)]
+    except: pass
     return []
 
-def fetch_europeana(query, limit=2, page=1):
-    """Fetch artworks from Europeana"""
-    if EUROPEANA_API_KEY == "YOUR_EUROPEANA_API_KEY_HERE":
-        return []
+def fetch_europeana(query, limit=1, page=1):
+    if EUROPEANA_API_KEY == "YOUR_EUROPEANA_API_KEY_HERE": return []
     try:
-        # Europeana uses 'start' parameter (1-indexed, where start=1 is first item)
         start = (page - 1) * limit + 1
         url = f"https://api.europeana.eu/record/v2/search.json?wskey={EUROPEANA_API_KEY}&query={query}&media=true&rows={limit}&start={start}&reusability=open"
         r = requests.get(url, timeout=3)
         if r.status_code == 200:
-            data = r.json()
-            items = data.get('items', [])
-            return [normalize_europeana(art) for art in items if normalize_europeana(art)]
-    except Exception:
-        pass
+            return [normalize_europeana(art) for art in r.json().get('items', []) if normalize_europeana(art)]
+    except: pass
     return []
 
-def fetch_cooper_hewitt(query, limit=2, page=1):
-    """Fetch artworks from Cooper Hewitt"""
-    if COOPER_HEWITT_API_KEY == "YOUR_COOPER_HEWITT_API_KEY_HERE":
-        return []
+def fetch_cooper_hewitt(query, limit=1, page=1):
+    if COOPER_HEWITT_API_KEY == "YOUR_COOPER_HEWITT_API_KEY_HERE": return []
     try:
-        # Cooper Hewitt uses 'page' parameter (1-indexed)
         url = f"https://api.collection.cooperhewitt.org/rest/?method=cooperhewitt.search.collection&access_token={COOPER_HEWITT_API_KEY}&query={query}&has_images=1&per_page={limit}&page={page}"
         r = requests.get(url, timeout=3)
         if r.status_code == 200:
-            data = r.json()
-            objects = data.get('objects', [])
-            return [normalize_cooper_hewitt(art) for art in objects if normalize_cooper_hewitt(art)]
-    except Exception:
-        pass
+            return [normalize_cooper_hewitt(art) for art in r.json().get('objects', []) if normalize_cooper_hewitt(art)]
+    except: pass
     return []
 
-def fetch_brooklyn(query, limit=2, page=1):
-    """Fetch artworks from Brooklyn Museum"""
+def fetch_brooklyn(query, limit=1, page=1):
     try:
-        # Brooklyn uses 'offset' parameter (0-indexed)
         offset = (page - 1) * limit
         url = f"https://www.brooklynmuseum.org/api/v2/object/?q={query}&has_images=1&limit={limit}&offset={offset}"
         r = requests.get(url, timeout=3)
         if r.status_code == 200:
-            data = r.json()
-            objects = data.get('data', [])
-            return [normalize_brooklyn(art) for art in objects if normalize_brooklyn(art)]
-    except Exception:
-        pass
+            return [normalize_brooklyn(art) for art in r.json().get('data', []) if normalize_brooklyn(art)]
+    except: pass
     return []
 
-def fetch_va(query, limit=2, page=1):
-    """Fetch artworks from Victoria and Albert Museum"""
+def fetch_va(query, limit=1, page=1):
     try:
-        # V&A uses 'page' parameter (1-indexed)
         url = f"https://api.vam.ac.uk/v2/objects/search?q={query}&images_exist=1&page_size={limit}&page={page}"
         r = requests.get(url, timeout=3)
         if r.status_code == 200:
-            data = r.json()
-            records = data.get('records', [])
-            return [normalize_va(art) for art in records if normalize_va(art)]
-    except Exception:
-        pass
+            return [normalize_va(art) for art in r.json().get('records', []) if normalize_va(art)]
+    except: pass
     return []
 
-def fetch_getty(query, limit=2, page=1):
-    """Fetch artworks from The Getty Museum"""
+def fetch_getty(query, limit=1, page=1):
     try:
-        # Getty uses Linked Art API with offset parameter
         offset = (page - 1) * limit
         url = f"https://data.getty.edu/museum/collection/object/search?q={query}&limit={limit}&offset={offset}"
         r = requests.get(url, timeout=3)
         if r.status_code == 200:
             data = r.json()
-            # Getty returns items in orderedItems array
             items = data.get('orderedItems', [])
             if not items and data.get('@graph'):
                 items = data['@graph']
             return [normalize_getty(art) for art in items if normalize_getty(art)]
-    except Exception:
-        pass
+    except: pass
     return []
 
-def fetch_nga(query, limit=2, page=1):
-    """Fetch artworks from National Gallery of Art"""
+def fetch_nga(query, limit=1, page=1):
     try:
-        # NGA uses 'skip' parameter for offset (0-indexed)
         skip = (page - 1) * limit
         url = f"https://api.nga.gov/art?q={query}&limit={limit}&skip={skip}"
         r = requests.get(url, timeout=3)
         if r.status_code == 200:
-            data = r.json()
-            records = data.get('data', [])
-            return [normalize_nga(art) for art in records if normalize_nga(art)]
-    except Exception:
-        pass
+            return [normalize_nga(art) for art in r.json().get('data', []) if normalize_nga(art)]
+    except: pass
     return []
 
 def fetch_artworks_page(query, page_num):
-    """Fetches artworks for a specific page - parallel fetching from all 12 APIs"""
     new_artworks = []
     
-    # Define all API fetch tasks
     def fetch_chicago():
         try:
             url = f"https://api.artic.edu/api/v1/artworks/search?q={query}&page={page_num}&limit=1&fields=id,title,image_id,artist_display,date_display&query[term][is_public_domain]=true"
             r = requests.get(url, timeout=3).json()
             return [normalize_chicago(i) for i in r['data'] if normalize_chicago(i)]
-        except Exception:
-            return []
+        except: return []
     
     def fetch_cleveland_page():
         try:
@@ -823,69 +707,50 @@ def fetch_artworks_page(query, page_num):
             url = f"https://openaccess-api.clevelandart.org/api/artworks/?q={query}&skip={skip_val}&limit=1&has_image=1"
             r = requests.get(url, timeout=3).json()
             return [normalize_cleveland(i) for i in r['data'] if normalize_cleveland(i)]
-        except Exception:
-            return []
+        except: return []
     
     def fetch_met_page():
-        # Eğer Met ID listesi boşsa veya sorgu değiştiyse güncelle
-        if not st.session_state.met_ids:
-            st.session_state.met_ids = search_met_ids_cached(query)
-        
-        # Sayfaya göre ID listesinden kesit al
+        st.session_state.met_ids = search_met_ids_cached(query)
         if st.session_state.met_ids:
             start_idx = (page_num - 1) * 1
             end_idx = start_idx + 1
-            
             target_ids = st.session_state.met_ids[start_idx:end_idx]
-            
             if target_ids:
                 results = []
                 for object_id in target_ids:
                     res = fetch_met_details(object_id)
-                    if res:
-                        results.append(res)
+                    if res: results.append(res)
                 return results
         return []
     
-    # Use ThreadPoolExecutor to fetch from all APIs in parallel
     with concurrent.futures.ThreadPoolExecutor(max_workers=12) as executor:
-        # Submit all tasks
         futures = {
             executor.submit(fetch_chicago): 'chicago',
             executor.submit(fetch_cleveland_page): 'cleveland',
             executor.submit(fetch_met_page): 'met',
-            executor.submit(fetch_rijksmuseum, query, 1, page_num): 'rijksmuseum',
-            executor.submit(fetch_harvard, query, 1, page_num): 'harvard',
-            executor.submit(fetch_smithsonian, query, 1, page_num): 'smithsonian',
-            executor.submit(fetch_europeana, query, 1, page_num): 'europeana',
-            executor.submit(fetch_cooper_hewitt, query, 1, page_num): 'cooper_hewitt',
-            executor.submit(fetch_brooklyn, query, 1, page_num): 'brooklyn',
-            executor.submit(fetch_va, query, 1, page_num): 'va',
-            executor.submit(fetch_getty, query, 1, page_num): 'getty',
-            executor.submit(fetch_nga, query, 1, page_num): 'nga'
+            executor.submit(fetch_rijksmuseum, query=query, limit=1, page=page_num): 'rijksmuseum',
+            executor.submit(fetch_harvard, query=query, limit=1, page=page_num): 'harvard',
+            executor.submit(fetch_smithsonian, query=query, limit=1, page=page_num): 'smithsonian',
+            executor.submit(fetch_europeana, query=query, limit=1, page=page_num): 'europeana',
+            executor.submit(fetch_cooper_hewitt, query=query, limit=1, page=page_num): 'cooper_hewitt',
+            executor.submit(fetch_brooklyn, query=query, limit=1, page=page_num): 'brooklyn',
+            executor.submit(fetch_va, query=query, limit=1, page=page_num): 'va',
+            executor.submit(fetch_getty, query=query, limit=1, page=page_num): 'getty',
+            executor.submit(fetch_nga, query=query, limit=1, page=page_num): 'nga'
         }
         
-        # Collect results as they complete
         for future in concurrent.futures.as_completed(futures):
             try:
-                result = future.result(timeout=5)  # 5 second max wait per task
-                if result:
-                    new_artworks.extend(result)
-            except Exception as e:
-                # Silent fail - continue with other APIs
-                pass
+                result = future.result(timeout=5)
+                if result: new_artworks.extend(result)
+            except: pass
     
     random.shuffle(new_artworks)
     return new_artworks
 
 # --- 3. PRO ZOOM BILEŞENI ---
 def zoomable_image_pro(src, alt, iiif_manifest=None):
-    """
-    Advanced zoom component with OpenSeadragon for IIIF support.
-    Falls back to simple image if no IIIF manifest is provided.
-    """
     if iiif_manifest:
-        # Use OpenSeadragon with IIIF
         html_code = f"""
         <!DOCTYPE html>
         <html lang="en">
@@ -902,21 +767,6 @@ def zoomable_image_pro(src, alt, iiif_manifest=None):
                 .btn svg {{ width: 20px; height: 20px; fill: currentColor; }}
                 .fs-btn {{ position: fixed; bottom: 20px; right: 20px; background: rgba(25, 25, 25, 0.6); width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255, 255, 255, 0.1); color: white; cursor: pointer; backdrop-filter: blur(5px); z-index: 101; transition: all 0.2s; }}
                 .fs-btn:hover {{ background: #d4af37; color: black; }}
-                
-                /* Responsive adjustments */
-                @media (max-width: 768px) {{
-                    .controls {{ gap: 10px; padding: 8px 15px; }}
-                    .btn {{ width: 20px; height: 20px; }}
-                    .btn svg {{ width: 16px; height: 16px; }}
-                    .fs-btn {{ width: 35px; height: 35px; }}
-                }}
-                
-                @media (max-width: 480px) {{
-                    .controls {{ bottom: 10px; gap: 8px; padding: 6px 12px; }}
-                    .btn {{ width: 18px; height: 18px; }}
-                    .btn svg {{ width: 14px; height: 14px; }}
-                    .fs-btn {{ bottom: 10px; right: 10px; width: 32px; height: 32px; }}
-                }}
             </style>
         </head>
         <body>
@@ -933,13 +783,8 @@ def zoomable_image_pro(src, alt, iiif_manifest=None):
                     prefixUrl: "https://cdn.jsdelivr.net/npm/openseadragon@4.1.0/build/openseadragon/images/",
                     tileSources: "{iiif_manifest}",
                     showNavigationControl: false,
-                    gestureSettingsMouse: {{
-                        clickToZoom: false,
-                        dblClickToZoom: true
-                    }},
-                    gestureSettingsTouch: {{
-                        pinchToZoom: true
-                    }},
+                    gestureSettingsMouse: {{ clickToZoom: false, dblClickToZoom: true }},
+                    gestureSettingsTouch: {{ pinchToZoom: true }},
                     minZoomLevel: 0.5,
                     maxZoomLevel: 10,
                     visibilityRatio: 0.2,
@@ -947,33 +792,15 @@ def zoomable_image_pro(src, alt, iiif_manifest=None):
                     animationTime: 0.5
                 }});
                 
-                document.getElementById('zoom-in').addEventListener('click', function() {{
-                    viewer.viewport.zoomBy(1.3);
-                    viewer.viewport.applyConstraints();
-                }});
-                
-                document.getElementById('zoom-out').addEventListener('click', function() {{
-                    viewer.viewport.zoomBy(0.7);
-                    viewer.viewport.applyConstraints();
-                }});
-                
-                document.getElementById('home').addEventListener('click', function() {{
-                    viewer.viewport.goHome();
-                }});
-                
-                document.getElementById('fullscreen').addEventListener('click', function() {{
-                    if (!document.fullscreenElement) {{
-                        document.body.requestFullscreen();
-                    }} else {{
-                        document.exitFullscreen();
-                    }}
-                }});
+                document.getElementById('zoom-in').addEventListener('click', function() {{ viewer.viewport.zoomBy(1.3); viewer.viewport.applyConstraints(); }});
+                document.getElementById('zoom-out').addEventListener('click', function() {{ viewer.viewport.zoomBy(0.7); viewer.viewport.applyConstraints(); }});
+                document.getElementById('home').addEventListener('click', function() {{ viewer.viewport.goHome(); }});
+                document.getElementById('fullscreen').addEventListener('click', function() {{ if (!document.fullscreenElement) {{ document.body.requestFullscreen(); }} else {{ document.exitFullscreen(); }} }});
             </script>
         </body>
         </html>
         """
     else:
-        # Fallback to Panzoom for non-IIIF images
         html_code = f"""
         <!DOCTYPE html>
         <html lang="en">
@@ -992,20 +819,6 @@ def zoomable_image_pro(src, alt, iiif_manifest=None):
                 .btn svg {{ width: 20px; height: 20px; fill: currentColor; }}
                 .fs-btn {{ position: fixed; bottom: 20px; right: 20px; background: rgba(25, 25, 25, 0.6); width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255, 255, 255, 0.1); color: white; cursor: pointer; backdrop-filter: blur(5px); z-index: 101; }}
                 .fs-btn:hover {{ background: #d4af37; color: black; }}
-                
-                @media (max-width: 768px) {{
-                    .controls {{ gap: 10px; padding: 8px 15px; }}
-                    .btn {{ width: 20px; height: 20px; }}
-                    .btn svg {{ width: 16px; height: 16px; }}
-                    .fs-btn {{ width: 35px; height: 35px; }}
-                }}
-                
-                @media (max-width: 480px) {{
-                    .controls {{ bottom: 10px; gap: 8px; padding: 6px 12px; }}
-                    .btn {{ width: 18px; height: 18px; }}
-                    .btn svg {{ width: 14px; height: 14px; }}
-                    .fs-btn {{ bottom: 10px; right: 10px; width: 32px; height: 32px; }}
-                }}
             </style>
         </head>
         <body>
@@ -1033,8 +846,6 @@ def zoomable_image_pro(src, alt, iiif_manifest=None):
 
 
 # --- 4. ARAYÜZ MANTIĞI ---
-
-# Header
 c1, c2 = st.columns([3, 1])
 with c1:
     st.markdown('<div style="font-family:Playfair Display; font-size:24px; color:#d4af37;">Arte Pura <span style="font-size:12px; color:#666;">PRO</span></div>', unsafe_allow_html=True)
@@ -1043,9 +854,9 @@ with c2:
         topics = ["Surrealism", "Renaissance", "Ukiyo-e", "Abstract", "Portrait", "Baroque", "Cubism", "Islamic Art", "Modern Art", "Ancient Egypt"]
         new_topic = random.choice(topics)
         st.session_state.query = new_topic
-        st.session_state.artworks = [] # Listeyi temizle
-        st.session_state.met_ids = [] # Cache temizle
-        st.session_state.page = 1 # Sayfayı sıfırla
+        st.session_state.artworks = []
+        st.session_state.met_ids = []
+        st.session_state.page = 1
         st.session_state.view = 'list'
         st.rerun()
 
@@ -1057,54 +868,47 @@ if st.session_state.view == 'detail' and st.session_state.selected_art:
         st.session_state.view = 'list'
         st.rerun()
 
-    # Pass IIIF manifest if available for deep zoom
     iiif_manifest = art.get('iiif_manifest', None)
     zoomable_image_pro(art['high_res'], art['title'], iiif_manifest)
     
-    # Build color swatches HTML if colors are available
     colors_html = ""
     if art.get('colors') and len(art['colors']) > 0:
         colors_html = '<div style="margin-top:10px;"><strong>Renk Paleti:</strong><div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">'
         for color in art['colors'][:5]:
-            # Handle both hex colors and named colors
             if color.startswith('#'):
                 colors_html += f'<div style="width:30px; height:30px; background:{color}; border-radius:4px; border:1px solid #555;" title="{color}"></div>'
             else:
-                # For named colors, display as tags
                 colors_html += f'<span style="background:#2a2a2a; color:#d4af37; padding:4px 10px; border-radius:12px; font-size:11px; border:1px solid #444;">{color}</span>'
         colors_html += '</div></div>'
     
-    # Build dimensions HTML if available
     dimensions_html = ""
     if art.get('dimensions') and art['dimensions'].strip():
         dimensions_html = f'<p><strong>Boyutlar:</strong> {art["dimensions"]}</p>'
     
-    st.markdown(f"""
-<div style="margin-top:10px; margin-bottom:5px;">
+    # HTML string inşa ediliyor (Hiçbir girinti/boşluk yok)
+    detail_html = f"""<div style="margin-top:10px; margin-bottom:5px;">
 <h2 style="margin:0; font-size:22px; color:#e0e0e0;">{art['title']}</h2>
 <p style="color:#d4af37; font-family:'Playfair Display',serif; font-style:italic;">{art['artist']}</p>
 </div>
-
 <div style="background:#1a1a1a; padding:15px; border-radius:8px; font-size:13px; color:#aaa; margin-top:20px;">
 <p><strong>Tarih:</strong> {art['date']}</p>
 {dimensions_html}
 <p><strong>Müze:</strong> {art['source']}</p>
 {colors_html}
-<hr style="border-color:#333;">
+<hr style="border:1px solid #333; margin:15px 0;">
 <a href="{art['link']}" target="_blank" style="color:#fff; text-decoration:none;">🔗 Müze Kaydına Git</a>
-</div>
-""", unsafe_allow_html=True)
+</div>"""
+
+    st.markdown(detail_html, unsafe_allow_html=True)
 
 # --- LİSTE GÖRÜNÜMÜ ---
 else:
-    # Filtreler
     tags = ["Impressionism", "Van Gogh", "Japanese Art", "Sculpture", "Bauhaus", "Modernism", "Islamic Art"]
     filter_choice = st.selectbox("Koleksiyonlar:", ["Kişisel Arama Yap..."] + tags, label_visibility="collapsed")
     
-    # Filtre Değişimi Kontrolü
     if filter_choice != "Kişisel Arama Yap..." and filter_choice != st.session_state.query:
         st.session_state.query = filter_choice
-        st.session_state.artworks = [] # Yeni arama için listeyi temizle
+        st.session_state.artworks = []
         st.session_state.met_ids = []
         st.session_state.page = 1
         st.rerun()
@@ -1120,13 +924,11 @@ else:
 
     st.markdown(f"<p style='font-size:12px; color:#666; margin-top:5px; margin-bottom:15px;'>Koleksiyon: <span style='color:#d4af37'>{st.session_state.query}</span></p>", unsafe_allow_html=True)
 
-    # İLK YÜKLEME
     if not st.session_state.artworks:
         with st.spinner('Küratör seçimi hazırlanıyor...'):
             initial_batch = fetch_artworks_page(st.session_state.query, 1)
             st.session_state.artworks = initial_batch
 
-    # GRID GÖSTERİMİ
     c1, c2 = st.columns(2)
     for i, art in enumerate(st.session_state.artworks):
         col = c1 if i % 2 == 0 else c2
@@ -1135,28 +937,26 @@ else:
             if img_url:
                 st.image(img_url, use_container_width=True)
             
-            # Başlık uzunluğunu güvenli şekilde kesme
             display_title = (art['title'][:18] + '..') if len(art.get('title', '')) > 18 else art.get('title', '')
-            
             btn_label = f"👁️ {display_title}" 
-            if st.button(btn_label, key=f"btn_{art['id']}_{i}"): # Key unique olmalı
+            
+            if st.button(btn_label, key=f"btn_{art['id']}_{i}"):
                 st.session_state.selected_art = art
                 st.session_state.view = 'detail'
                 st.rerun()
             
             st.markdown("<div style='margin-bottom:25px;'></div>", unsafe_allow_html=True)
 
-    # --- DAHA FAZLA KEŞFET (YENİ MANTIK) ---
     st.markdown("---")
     col_load_1, col_load_2, col_load_3 = st.columns([1, 2, 1])
     with col_load_2:
         st.markdown('<div class="load-more-btn">', unsafe_allow_html=True)
         if st.button("✨ Daha Fazla Eser Getir", use_container_width=True):
-            st.session_state.page += 1 # Sayfayı artır
+            st.session_state.page += 1
             with st.spinner(f"{st.session_state.page}. salon açılıyor..."):
                 new_batch = fetch_artworks_page(st.session_state.query, st.session_state.page)
                 if new_batch:
-                    st.session_state.artworks.extend(new_batch) # Listeye EKLE
+                    st.session_state.artworks.extend(new_batch)
                     st.rerun()
                 else:
                     st.warning("Bu koleksiyonda daha fazla eser bulunamadı.")
