@@ -63,12 +63,23 @@ st.markdown("""
         border-color: #d4af37;
         color: #fff;
     }
+
+    /* Daha Fazla Keşfet Butonu için özel stil */
+    .load-more-btn button {
+        background-color: #d4af37 !important;
+        color: #000 !important;
+        font-weight: bold !important;
+        text-align: center !important;
+        border-radius: 8px !important;
+    }
     
     /* Görsel Kenarları */
     div[data-testid="stImage"] img {
         border-radius: 8px 8px 0 0 !important;
         border: 1px solid #333;
         border-bottom: none;
+        object-fit: cover;
+        height: 300px !important; /* Görselleri eşit boyda tutar */
     }
     
     /* Selectbox */
@@ -80,7 +91,15 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. YARDIMCI FONKSİYONLAR ---
+# --- 2. YARDIMCI FONKSİYONLAR VE STATE ---
+
+# State Başlatma
+if 'view' not in st.session_state: st.session_state.view = 'list'
+if 'selected_art' not in st.session_state: st.session_state.selected_art = None
+if 'query' not in st.session_state: st.session_state.query = "Impressionism"
+if 'artworks' not in st.session_state: st.session_state.artworks = []
+if 'page' not in st.session_state: st.session_state.page = 1 # Sayfa Sayacı
+if 'met_ids' not in st.session_state: st.session_state.met_ids = [] # Met ID Cache
 
 def safe_str(val):
     if val is None: return ""
@@ -89,7 +108,6 @@ def safe_str(val):
 
 # --- API NORMALİZASYON ---
 
-# 1. Chicago Art Institute
 def normalize_chicago(item):
     if not item.get('image_id'): return None
     iiif = "https://www.artic.edu/iiif/2"
@@ -99,22 +117,19 @@ def normalize_chicago(item):
         'title': safe_str(item.get('title')),
         'artist': safe_str(item.get('artist_display', 'Unknown').split('\n')[0]),
         'date': safe_str(item.get('date_display')),
-        'thumbnail': f"{iiif}/{item['image_id']}/full/600,/0/default.jpg",
+        'thumbnail': f"{iiif}/{item['image_id']}/full/400,/0/default.jpg",
         'high_res': f"{iiif}/{item['image_id']}/full/1686,/0/default.jpg", 
         'link': f"https://www.artic.edu/artworks/{item['id']}"
     }
 
-# 2. Cleveland Museum of Art
 def normalize_cleveland(item):
     if not item.get('images') or not item.get('images').get('web'): return None
     creators = item.get('creators', [])
     artist = creators[0].get('description', 'Unknown') if creators else 'Unknown'
     
     high_res_url = item['images']['web']['url']
-    if 'print' in item['images']:
-        high_res_url = item['images']['print']['url']
-    elif 'full' in item['images']:
-         high_res_url = item['images']['full']['url']
+    if 'print' in item['images']: high_res_url = item['images']['print']['url']
+    elif 'full' in item['images']: high_res_url = item['images']['full']['url']
          
     return {
         'id': f"cle-{item['id']}",
@@ -127,7 +142,6 @@ def normalize_cleveland(item):
         'link': item.get('url', '#')
     }
 
-# 3. The Metropolitan Museum of Art (YENİ!)
 def normalize_met(item):
     if not item.get('primaryImageSmall'): return None
     return {
@@ -137,11 +151,12 @@ def normalize_met(item):
         'artist': safe_str(item.get('artistDisplayName') or 'Unknown'),
         'date': safe_str(item.get('objectDate')),
         'thumbnail': item['primaryImageSmall'],
-        'high_res': item['primaryImage'], # Met görselleri genelde çok yüksek kalitedir
+        'high_res': item['primaryImage'],
         'link': item.get('objectURL', '#')
     }
 
-# --- PARALEL VERİ ÇEKME MOTORU ---
+# --- GELİŞMİŞ VERİ ÇEKME MOTORU ---
+
 def fetch_met_details(object_id):
     """Tek bir Met objesinin detayını çeker"""
     try:
@@ -151,48 +166,61 @@ def fetch_met_details(object_id):
     except:
         return None
 
-@st.cache_data(show_spinner=False, ttl=3600)
-def fetch_artworks(query):
-    artworks = []
-    
-    # 1. Chicago (Hızlı)
+# Met ID'lerini bir kez çekip cache'liyoruz, böylece her sayfa yüklemesinde arama yapmıyoruz
+@st.cache_data(ttl=3600)
+def search_met_ids_cached(query):
     try:
-        url = f"https://api.artic.edu/api/v1/artworks/search?q={query}&limit=6&fields=id,title,image_id,artist_display,date_display&query[term][is_public_domain]=true"
-        r = requests.get(url, timeout=3).json()
-        artworks.extend([normalize_chicago(i) for i in r['data'] if normalize_chicago(i)])
-    except: pass
-
-    # 2. Cleveland (Hızlı)
-    try:
-        url = f"https://openaccess-api.clevelandart.org/api/artworks/?q={query}&limit=6&has_image=1"
-        r = requests.get(url, timeout=3).json()
-        artworks.extend([normalize_cleveland(i) for i in r['data'] if normalize_cleveland(i)])
-    except: pass
-
-    # 3. The Met (Yavaş olduğu için Paralel İşleme)
-    try:
-        # Önce arama yapıp ID'leri alıyoruz
         search_url = f"https://collectionapi.metmuseum.org/public/collection/v1/search?q={query}&hasImages=true&isPublicDomain=true"
-        r = requests.get(search_url, timeout=3).json()
-        
-        if r['total'] > 0:
-            # Rastgele 5 ID seçiyoruz (hepsini çekersek sistem donar)
-            object_ids = r['objectIDs'][:20] # İlk 20 içinden
-            random.shuffle(object_ids)
-            selected_ids = object_ids[:6] # 6 tanesini al
-            
-            # ThreadPoolExecutor ile AYNI ANDA 6 istek atıyoruz
-            with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
-                results = list(executor.map(fetch_met_details, selected_ids))
-            
-            # Boş sonuçları temizle
-            artworks.extend([res for res in results if res])
-    except: pass
-    
-    random.shuffle(artworks)
-    return artworks
+        r = requests.get(search_url, timeout=4).json()
+        ids = r.get('objectIDs', [])
+        if ids:
+            return ids[:300] # En fazla 300 ID saklayalım performans için
+    except:
+        pass
+    return []
 
-# --- 3. PRO ZOOM & FULLSCREEN BILEŞENI ---
+def fetch_artworks_page(query, page_num):
+    """Belirli bir sayfadaki eserleri getirir"""
+    new_artworks = []
+    
+    # 1. Chicago API (Pagination Destekler)
+    try:
+        url = f"https://api.artic.edu/api/v1/artworks/search?q={query}&page={page_num}&limit=3&fields=id,title,image_id,artist_display,date_display&query[term][is_public_domain]=true"
+        r = requests.get(url, timeout=3).json()
+        new_artworks.extend([normalize_chicago(i) for i in r['data'] if normalize_chicago(i)])
+    except Exception as e:
+        pass # Hata olursa sessizce geç
+
+    # 2. Cleveland API (Skip/Offset Destekler)
+    try:
+        skip_val = (page_num - 1) * 3
+        url = f"https://openaccess-api.clevelandart.org/api/artworks/?q={query}&skip={skip_val}&limit=3&has_image=1"
+        r = requests.get(url, timeout=3).json()
+        new_artworks.extend([normalize_cleveland(i) for i in r['data'] if normalize_cleveland(i)])
+    except:
+        pass
+
+    # 3. The Met (Cache'lenmiş ID listesinden dilimleme yapar)
+    # Eğer Met ID listesi boşsa veya sorgu değiştiyse güncelle
+    if not st.session_state.met_ids:
+        st.session_state.met_ids = search_met_ids_cached(query)
+    
+    # Sayfaya göre ID listesinden kesit al (Örn: Sayfa 1 için 0-3, Sayfa 2 için 3-6)
+    if st.session_state.met_ids:
+        start_idx = (page_num - 1) * 3
+        end_idx = start_idx + 3
+        
+        target_ids = st.session_state.met_ids[start_idx:end_idx]
+        
+        if target_ids:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+                results = list(executor.map(fetch_met_details, target_ids))
+            new_artworks.extend([res for res in results if res])
+
+    random.shuffle(new_artworks)
+    return new_artworks
+
+# --- 3. PRO ZOOM BILEŞENI ---
 def zoomable_image_pro(src, alt):
     html_code = f"""
     <!DOCTYPE html>
@@ -202,177 +230,56 @@ def zoomable_image_pro(src, alt):
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
         <script src="https://unpkg.com/@panzoom/panzoom@4.5.1/dist/panzoom.min.js"></script>
         <style>
-            html, body {{
-                margin: 0;
-                padding: 0;
-                background-color: #000;
-                height: 100vh;
-                width: 100vw;
-                overflow: hidden; /* Scrollbarları engelle */
-            }}
-            #scene {{
-                width: 100vw;
-                height: 100vh;
-                display: flex;
-                justify-content: center; /* Yatay Ortala */
-                align-items: center;     /* Dikey Ortala */
-            }}
-            img {{
-                max-width: 100%;
-                max-height: 100%;
-                object-fit: contain; /* Orantılı sığdır */
-                transform-origin: center center; /* Zoom merkezden başlasın */
-                cursor: grab;
-            }}
-            img:active {{
-                cursor: grabbing;
-            }}
-            
-            /* Kontrol Paneli */
-            .controls {{
-                position: fixed;
-                bottom: 20px;
-                left: 50%;
-                transform: translateX(-50%);
-                display: flex;
-                gap: 15px;
-                background: rgba(25, 25, 25, 0.8);
-                padding: 10px 20px;
-                border-radius: 30px;
-                backdrop-filter: blur(10px);
-                border: 1px solid rgba(255, 255, 255, 0.1);
-                z-index: 100;
-            }}
-            
-            .btn {{
-                background: transparent;
-                border: none;
-                color: #e0e0e0;
-                cursor: pointer;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                width: 24px;
-                height: 24px;
-                transition: transform 0.2s, color 0.2s;
-            }}
+            html, body {{ margin: 0; padding: 0; background-color: #000; height: 100vh; width: 100vw; overflow: hidden; }}
+            #scene {{ width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; }}
+            img {{ max-width: 100%; max-height: 100%; object-fit: contain; cursor: grab; }}
+            img:active {{ cursor: grabbing; }}
+            .controls {{ position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 15px; background: rgba(25, 25, 25, 0.8); padding: 10px 20px; border-radius: 30px; backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); z-index: 100; }}
+            .btn {{ background: transparent; border: none; color: #e0e0e0; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; }}
             .btn:hover {{ color: #d4af37; transform: scale(1.1); }}
             .btn svg {{ width: 20px; height: 20px; fill: currentColor; }}
-            
-            /* Fullscreen İkonu Sağ Alta */
-            .fs-btn {{
-                position: fixed;
-                bottom: 20px;
-                right: 20px;
-                background: rgba(25, 25, 25, 0.6);
-                width: 40px;
-                height: 40px;
-                border-radius: 50%;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                border: 1px solid rgba(255, 255, 255, 0.1);
-                color: white;
-                cursor: pointer;
-                backdrop-filter: blur(5px);
-                z-index: 101;
-            }}
+            .fs-btn {{ position: fixed; bottom: 20px; right: 20px; background: rgba(25, 25, 25, 0.6); width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255, 255, 255, 0.1); color: white; cursor: pointer; backdrop-filter: blur(5px); z-index: 101; }}
             .fs-btn:hover {{ background: #d4af37; color: black; }}
-
         </style>
     </head>
     <body>
-        <div id="scene">
-            <img src="{src}" alt="{alt}" id="target">
-        </div>
-
-        <!-- Şık Kontroller -->
+        <div id="scene"><img src="{src}" alt="{alt}" id="target"></div>
         <div class="controls">
-            <button class="btn" id="zoom-out" title="Uzaklaş">
-                <svg viewBox="0 0 24 24"><path d="M19 13H5v-2h14v2z"/></svg>
-            </button>
-            <button class="btn" id="reset" title="Sıfırla">
-                <svg viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
-            </button>
-            <button class="btn" id="zoom-in" title="Yakınlaş">
-                <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-            </button>
+            <button class="btn" id="zoom-out"><svg viewBox="0 0 24 24"><path d="M19 13H5v-2h14v2z"/></svg></button>
+            <button class="btn" id="reset"><svg viewBox="0 0 24 24"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0020 12c0-4.42-3.58-8-7.99-8z"/></svg></button>
+            <button class="btn" id="zoom-in"><svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></button>
         </div>
-
-        <!-- Tam Ekran Butonu -->
-        <button class="fs-btn" id="fullscreen" title="Tam Ekran">
-             <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
-        </button>
-
+        <button class="fs-btn" id="fullscreen"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg></button>
         <script>
             const elem = document.getElementById('target');
-            const scene = document.getElementById('scene');
-            
-            // Panzoom Başlat
-            const panzoom = Panzoom(elem, {{
-                maxScale: 5,
-                minScale: 0.5,
-                contain: false, // Flexbox ortalaması için false yaptık
-                startScale: 1,
-                animate: true
-            }});
-
-            // Resim tamamen yüklendiğinde ve boyutlandığında tekrar resetle
-            elem.onload = function() {{
-                panzoom.reset();
-            }};
-
-            // Mouse Tekerleği
-            scene.addEventListener('wheel', panzoom.zoomWithWheel);
-
-            // Buton Bağlantıları
+            const panzoom = Panzoom(elem, {{ maxScale: 5, minScale: 0.5, contain: false, startScale: 1, animate: true }});
+            elem.onload = function() {{ panzoom.reset(); }};
+            document.getElementById('scene').addEventListener('wheel', panzoom.zoomWithWheel);
             document.getElementById('zoom-in').addEventListener('click', panzoom.zoomIn);
             document.getElementById('zoom-out').addEventListener('click', panzoom.zoomOut);
             document.getElementById('reset').addEventListener('click', panzoom.reset);
-
-            // Çift Tıklama = Zoom / Reset
-            elem.addEventListener('dblclick', function(e) {{
-                if(panzoom.getScale() > 1) {{
-                    panzoom.reset();
-                }} else {{
-                    panzoom.zoomToPoint(2, {{ clientX: e.clientX, clientY: e.clientY }});
-                }}
-            }});
-
-            // Tam Ekran Mantığı
-            const fsBtn = document.getElementById('fullscreen');
-            fsBtn.addEventListener('click', function() {{
-                if (!document.fullscreenElement) {{
-                    document.body.requestFullscreen().catch(err => {{
-                        console.log(err);
-                    }});
-                }} else {{
-                    document.exitFullscreen();
-                }}
-            }});
+            document.getElementById('fullscreen').addEventListener('click', function() {{ if (!document.fullscreenElement) {{ document.body.requestFullscreen(); }} else {{ document.exitFullscreen(); }} }});
         </script>
     </body>
     </html>
     """
     components.html(html_code, height=650)
 
-# --- 4. STATE ---
-if 'view' not in st.session_state: st.session_state.view = 'list'
-if 'selected_art' not in st.session_state: st.session_state.selected_art = None
-if 'query' not in st.session_state: st.session_state.query = "Impressionism"
-if 'artworks' not in st.session_state: st.session_state.artworks = []
 
-# --- 5. ARAYÜZ ---
+# --- 4. ARAYÜZ MANTIĞI ---
 
 # Header
 c1, c2 = st.columns([3, 1])
 with c1:
-    st.markdown('<div style="font-family:Playfair Display; font-size:24px; color:#d4af37;">Arte Pura <span style="font-size:12px; color:#666;">ULTIMATE</span></div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-family:Playfair Display; font-size:24px; color:#d4af37;">Arte Pura <span style="font-size:12px; color:#666;">PRO</span></div>', unsafe_allow_html=True)
 with c2:
-    if st.button("🎲", help="Rastgele"):
-        topics = ["Surrealism", "Renaissance", "Ukiyo-e", "Abstract", "Portrait", "Baroque", "Cubism", "Islamic Art", "Modern Art"]
-        st.session_state.query = random.choice(topics)
-        st.session_state.artworks = [] 
+    if st.button("🎲", help="Rastgele Konu"):
+        topics = ["Surrealism", "Renaissance", "Ukiyo-e", "Abstract", "Portrait", "Baroque", "Cubism", "Islamic Art", "Modern Art", "Ancient Egypt"]
+        new_topic = random.choice(topics)
+        st.session_state.query = new_topic
+        st.session_state.artworks = [] # Listeyi temizle
+        st.session_state.met_ids = [] # Cache temizle
+        st.session_state.page = 1 # Sayfayı sıfırla
         st.session_state.view = 'list'
         st.rerun()
 
@@ -380,11 +287,10 @@ with c2:
 if st.session_state.view == 'detail' and st.session_state.selected_art:
     art = st.session_state.selected_art
     
-    if st.button("← Geri Dön", key="back_btn"):
+    if st.button("← Galeriy Dön", key="back_btn"):
         st.session_state.view = 'list'
         st.rerun()
 
-    # Yeni Pro Zoom Bileşeni
     zoomable_image_pro(art['high_res'], art['title'])
     
     st.markdown(f"""
@@ -400,19 +306,6 @@ if st.session_state.view == 'detail' and st.session_state.selected_art:
         <a href="{art['link']}" target="_blank" style="color:#fff; text-decoration:none;">🔗 Müze Kaydına Git</a>
     </div>
     """, unsafe_allow_html=True)
-        
-    st.markdown("<br>", unsafe_allow_html=True)
-    try:
-        img_data = requests.get(art['high_res']).content
-        st.download_button(
-            label="Eseri HD İndir",
-            data=img_data,
-            file_name=f"arte_pura_{art['id']}.jpg",
-            mime="image/jpeg",
-            use_container_width=True
-        )
-    except:
-        pass
 
 # --- LİSTE GÖRÜNÜMÜ ---
 else:
@@ -420,9 +313,12 @@ else:
     tags = ["Impressionism", "Van Gogh", "Japanese Art", "Sculpture", "Bauhaus", "Modernism", "Islamic Art"]
     filter_choice = st.selectbox("Koleksiyonlar:", ["Kişisel Arama Yap..."] + tags, label_visibility="collapsed")
     
+    # Filtre Değişimi Kontrolü
     if filter_choice != "Kişisel Arama Yap..." and filter_choice != st.session_state.query:
         st.session_state.query = filter_choice
-        st.session_state.artworks = []
+        st.session_state.artworks = [] # Yeni arama için listeyi temizle
+        st.session_state.met_ids = []
+        st.session_state.page = 1
         st.rerun()
 
     if filter_choice == "Kişisel Arama Yap...":
@@ -430,15 +326,19 @@ else:
         if search_input and search_input != st.session_state.query:
             st.session_state.query = search_input
             st.session_state.artworks = []
+            st.session_state.met_ids = []
+            st.session_state.page = 1
             st.rerun()
 
-    st.markdown(f"<p style='font-size:12px; color:#666; margin-top:5px; margin-bottom:15px;'>Seçim: <span style='color:#d4af37'>{st.session_state.query}</span></p>", unsafe_allow_html=True)
+    st.markdown(f"<p style='font-size:12px; color:#666; margin-top:5px; margin-bottom:15px;'>Koleksiyon: <span style='color:#d4af37'>{st.session_state.query}</span></p>", unsafe_allow_html=True)
 
+    # İLK YÜKLEME
     if not st.session_state.artworks:
-        with st.spinner('Evrensel koleksiyon taranıyor (Met, Chicago, Cleveland)...'):
-            st.session_state.artworks = fetch_artworks(st.session_state.query)
+        with st.spinner('Küratör seçimi hazırlanıyor...'):
+            initial_batch = fetch_artworks_page(st.session_state.query, 1)
+            st.session_state.artworks = initial_batch
 
-    # Grid
+    # GRID GÖSTERİMİ
     c1, c2 = st.columns(2)
     for i, art in enumerate(st.session_state.artworks):
         col = c1 if i % 2 == 0 else c2
@@ -447,14 +347,29 @@ else:
             if img_url:
                 st.image(img_url, use_container_width=True)
             
-            btn_label = f"👁️ {art['title'][:15]}..." 
-            if st.button(btn_label, key=f"btn_{art['id']}"):
+            # Başlık uzunluğunu güvenli şekilde kesme
+            display_title = (art['title'][:18] + '..') if len(art.get('title', '')) > 18 else art.get('title', '')
+            
+            btn_label = f"👁️ {display_title}" 
+            if st.button(btn_label, key=f"btn_{art['id']}_{i}"): # Key unique olmalı
                 st.session_state.selected_art = art
                 st.session_state.view = 'detail'
                 st.rerun()
             
-            st.markdown("<div style='margin-bottom:15px;'></div>", unsafe_allow_html=True)
+            st.markdown("<div style='margin-bottom:25px;'></div>", unsafe_allow_html=True)
 
-    if st.button("Daha Fazla Keşfet", use_container_width=True):
-        st.session_state.artworks = []
-        st.rerun()
+    # --- DAHA FAZLA KEŞFET (YENİ MANTIK) ---
+    st.markdown("---")
+    col_load_1, col_load_2, col_load_3 = st.columns([1, 2, 1])
+    with col_load_2:
+        st.markdown('<div class="load-more-btn">', unsafe_allow_html=True)
+        if st.button("✨ Daha Fazla Eser Getir", use_container_width=True):
+            st.session_state.page += 1 # Sayfayı artır
+            with st.spinner(f"{st.session_state.page}. salon açılıyor..."):
+                new_batch = fetch_artworks_page(st.session_state.query, st.session_state.page)
+                if new_batch:
+                    st.session_state.artworks.extend(new_batch) # Listeye EKLE
+                    st.rerun()
+                else:
+                    st.warning("Bu koleksiyonda daha fazla eser bulunamadı.")
+        st.markdown('</div>', unsafe_allow_html=True)
