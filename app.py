@@ -794,7 +794,7 @@ def fetch_nga(query, limit=2):
     return []
 
 def fetch_artworks_page(query, page_num):
-    """Belirli bir sayfadaki eserleri getirir - Tüm 12 API'den paralel çeker"""
+    """Fetches artworks for a specific page - parallel fetching from all 12 APIs"""
     new_artworks = []
     
     # Define all API fetch tasks
