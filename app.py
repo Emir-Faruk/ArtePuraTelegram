@@ -21,6 +21,12 @@ components.html("""
         var viewport = document.querySelector('meta[name="viewport"]');
         if (viewport) {
             viewport.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes');
+        } else {
+            // Create viewport meta tag if it doesn't exist
+            var meta = document.createElement('meta');
+            meta.name = 'viewport';
+            meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes';
+            document.head.appendChild(meta);
         }
     })();
     
