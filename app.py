@@ -181,27 +181,27 @@ st.markdown("""
 
 try:
     RIJKS_API_KEY = st.secrets["API_KEYS"]["rijksmuseum"]
-except:
+except Exception:
     RIJKS_API_KEY = "YOUR_RIJKSMUSEUM_API_KEY_HERE"  # https://data.rijksmuseum.nl/object-metadata/api/
 
 try:
     HARVARD_API_KEY = st.secrets["API_KEYS"]["harvard"]
-except:
+except Exception:
     HARVARD_API_KEY = "YOUR_HARVARD_API_KEY_HERE"  # https://www.harvardartmuseums.org/collections/api
 
 try:
     SMITHSONIAN_API_KEY = st.secrets["API_KEYS"]["smithsonian"]
-except:
+except Exception:
     SMITHSONIAN_API_KEY = "YOUR_SMITHSONIAN_API_KEY_HERE"  # https://api.si.edu/openaccess/api/v1.0/
 
 try:
     EUROPEANA_API_KEY = st.secrets["API_KEYS"]["europeana"]
-except:
+except Exception:
     EUROPEANA_API_KEY = "YOUR_EUROPEANA_API_KEY_HERE"  # https://pro.europeana.eu/page/get-api
 
 try:
     COOPER_HEWITT_API_KEY = st.secrets["API_KEYS"]["cooper_hewitt"]
-except:
+except Exception:
     COOPER_HEWITT_API_KEY = "YOUR_COOPER_HEWITT_API_KEY_HERE"  # https://collection.cooperhewitt.org/api/
 
 # Brooklyn Museum and V&A do not require API keys for basic access
@@ -507,7 +507,7 @@ def fetch_rijksmuseum(query, limit=2):
             data = r.json()
             artworks = data.get('artObjects', [])
             return [normalize_rijksmuseum(art) for art in artworks if normalize_rijksmuseum(art)]
-    except:
+    except Exception:
         pass
     return []
 
@@ -522,7 +522,7 @@ def fetch_harvard(query, limit=2):
             data = r.json()
             records = data.get('records', [])
             return [normalize_harvard(art) for art in records if normalize_harvard(art)]
-    except:
+    except Exception:
         pass
     return []
 
@@ -539,7 +539,7 @@ def fetch_smithsonian(query, limit=2):
             response = data.get('response', {})
             rows = response.get('rows', [])
             return [normalize_smithsonian(art) for art in rows if normalize_smithsonian(art)]
-    except:
+    except Exception:
         pass
     return []
 
@@ -554,7 +554,7 @@ def fetch_europeana(query, limit=2):
             data = r.json()
             items = data.get('items', [])
             return [normalize_europeana(art) for art in items if normalize_europeana(art)]
-    except:
+    except Exception:
         pass
     return []
 
@@ -569,7 +569,7 @@ def fetch_cooper_hewitt(query, limit=2):
             data = r.json()
             objects = data.get('objects', [])
             return [normalize_cooper_hewitt(art) for art in objects if normalize_cooper_hewitt(art)]
-    except:
+    except Exception:
         pass
     return []
 
@@ -582,7 +582,7 @@ def fetch_brooklyn(query, limit=2):
             data = r.json()
             objects = data.get('data', [])
             return [normalize_brooklyn(art) for art in objects if normalize_brooklyn(art)]
-    except:
+    except Exception:
         pass
     return []
 
@@ -596,7 +596,7 @@ def fetch_va(query, limit=2):
             data = r.json()
             records = data.get('records', [])
             return [normalize_va(art) for art in records if normalize_va(art)]
-    except:
+    except Exception:
         pass
     return []
 
@@ -610,7 +610,7 @@ def fetch_artworks_page(query, page_num):
             url = f"https://api.artic.edu/api/v1/artworks/search?q={query}&page={page_num}&limit=1&fields=id,title,image_id,artist_display,date_display&query[term][is_public_domain]=true"
             r = requests.get(url, timeout=3).json()
             return [normalize_chicago(i) for i in r['data'] if normalize_chicago(i)]
-        except:
+        except Exception:
             return []
     
     def fetch_cleveland_page():
@@ -619,7 +619,7 @@ def fetch_artworks_page(query, page_num):
             url = f"https://openaccess-api.clevelandart.org/api/artworks/?q={query}&skip={skip_val}&limit=1&has_image=1"
             r = requests.get(url, timeout=3).json()
             return [normalize_cleveland(i) for i in r['data'] if normalize_cleveland(i)]
-        except:
+        except Exception:
             return []
     
     def fetch_met_page():
