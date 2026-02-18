@@ -2,21 +2,23 @@
 
 ## Overview
 
-Arte Pura now integrates with **10 world-class museum APIs** to bring you the finest art collections:
+Arte Pura now integrates with **12 world-class museum APIs** to bring you the finest art collections:
 
-### Original APIs (3):
-1. **Chicago Art Institute** - No API key required
-2. **Cleveland Museum of Art** - No API key required  
+### No API Key Required (7):
+1. **Chicago Art Institute** - No API key required (IIIF support)
+2. **Cleveland Museum of Art** - No API key required (color palette data)
 3. **The Met (Metropolitan Museum of Art)** - No API key required
+4. **Brooklyn Museum** - No API key required
+5. **Victoria and Albert Museum (V&A)** - No API key required (IIIF support)
+6. **The Getty Museum** - No API key required (IIIF support)
+7. **National Gallery of Art (US)** - No API key required (IIIF support)
 
-### New APIs (7):
-4. **Rijksmuseum** - API key required
-5. **Harvard Art Museums** - API key required
-6. **Smithsonian Open Access** - API key required
-7. **Europeana** - API key required
-8. **Cooper Hewitt, Smithsonian Design Museum** - API key required
-9. **Brooklyn Museum** - No API key required
-10. **Victoria and Albert Museum (V&A)** - No API key required
+### API Key Required (5):
+8. **Rijksmuseum** - API key required
+9. **Harvard Art Museums** - API key required (IIIF + color data)
+10. **Smithsonian Open Access** - API key required
+11. **Europeana** - API key required
+12. **Cooper Hewitt, Smithsonian Design Museum** - API key required
 
 ## API Key Setup
 
@@ -92,11 +94,23 @@ COOPER_HEWITT_API_KEY = "your-actual-api-key-here"
 - **API Key**: Not required for basic access  
 - **Documentation**: https://developers.vam.ac.uk/guide/v2/welcome.html
 
+### 8. The Getty Museum API
+- **URL**: https://data.getty.edu/museum/collection/
+- **API Key**: Not required
+- **Features**: Linked Art JSON-LD format, IIIF support
+- **Documentation**: https://data.getty.edu/museum/collection/docs/
+
+### 9. National Gallery of Art API
+- **URL**: https://api.nga.gov/
+- **API Key**: Not required
+- **Features**: IIIF support, comprehensive collection
+- **Documentation**: https://github.com/NationalGalleryOfArt/opendata
+
 ## Features
 
 ### Concurrent API Fetching
-The app uses `ThreadPoolExecutor` to fetch from all 10 APIs simultaneously, providing fast results:
-- Maximum 10 workers (one per API)
+The app uses `ThreadPoolExecutor` to fetch from all 12 APIs simultaneously, providing fast results:
+- Maximum 12 workers (one per API)
 - 3-second timeout per API request
 - Graceful error handling - if one API fails, others continue
 
@@ -112,21 +126,29 @@ Each museum API returns data in a different format. Arte Pura normalizes all res
     'date': 'Creation Date',
     'thumbnail': 'URL to thumbnail image',
     'high_res': 'URL to high-resolution image',
-    'link': 'URL to museum's page for this artwork'
+    'link': 'URL to museum's page for this artwork',
+    'iiif_manifest': 'IIIF info.json URL (if available)',
+    'colors': ['color1', 'color2', ...],  # Prominent colors
+    'dimensions': 'Physical dimensions'
 }
 ```
 
 ### High-Resolution Images
 The integration prioritizes the highest quality images available:
-- **IIIF Protocol**: Used for Chicago, Harvard, Rijksmuseum, and V&A
-- **Maximum Resolution**: Up to 2048px for most museums
-- **Fallback Handling**: Falls back to available resolution if highest isn't available
+- **IIIF Protocol**: Used for Chicago, Harvard, V&A, Getty, and NGA with OpenSeadragon deep zoom
+- **Maximum Resolution**: Up to 2048px for most museums, unlimited with IIIF tile-based loading
+- **Fallback Handling**: Falls back to Panzoom for non-IIIF images
+
+### Advanced Features
+- **Deep Zoom**: OpenSeadragon-powered tile-based zooming for IIIF-compatible museums
+- **Color Palettes**: Extracted and displayed from Cleveland and Harvard APIs
+- **Metadata**: Physical dimensions shown when available
 
 ## Testing
 
-Without API keys, the app will still work using the 3 original museums (Chicago, Cleveland, and The Met) plus Brooklyn and V&A which don't require keys.
+Without API keys, the app will still work using 7 museums (Chicago, Cleveland, The Met, Brooklyn, V&A, Getty, and NGA) which don't require keys.
 
-To test with all 10 APIs, you'll need to obtain API keys for the 5 museums listed above.
+To test with all 12 APIs, you'll need to obtain API keys for the 5 museums listed above.
 
 ## Troubleshooting
 
