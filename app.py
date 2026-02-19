@@ -147,6 +147,25 @@ st.markdown("""
         color: #d4af37;
         background: rgba(212, 175, 55, 0.05);
     }
+
+    /* Modern Link Tasarımı (Hover effect) */
+    .art-link {
+        color: #e0e0e0; 
+        text-decoration: none; 
+        border-bottom: 1px solid #444; 
+        padding-bottom: 2px; 
+        font-size: 13px; 
+        letter-spacing: 1px; 
+        transition: 0.3s ease;
+    }
+    .art-link:hover {
+        color: #d4af37;
+        border-bottom-color: #d4af37;
+    }
+    .art-link.primary {
+        border-bottom-color: #d4af37;
+        color: #fff;
+    }
     
     /* Selectbox */
     div[data-baseweb="select"] > div, .stTextInput input {
@@ -189,8 +208,6 @@ def safe_str(val):
     return str(val)
 
 # --- 4. GÜVENLİ NORMALİZASYON FONKSİYONLARI ---
-# Hata riskini minimize etmek için tüm iç içe erişimler .get() ile yapıldı
-
 def normalize_chicago(item):
     if not item.get('image_id'): return None
     iiif = "https://www.artic.edu/iiif/2"
@@ -207,24 +224,18 @@ def normalize_chicago(item):
     }
 
 def normalize_cleveland(item):
-    # Zincirleme hata koruması
     web_img = item.get('images', {}).get('web', {}).get('url')
     if not web_img: return None
-    
     creators = item.get('creators', [])
     artist = creators[0].get('description', 'Unknown') if creators else 'Unknown'
-    
-    # En yüksek çözünürlüğü bul
     high_res = web_img
     if item.get('images', {}).get('print', {}).get('url'):
         high_res = item['images']['print']['url']
     elif item.get('images', {}).get('full', {}).get('url'):
         high_res = item['images']['full']['url']
-
     colors = []
     if isinstance(item.get('colour'), dict):
         colors = list(item['colour'].keys())[:5]
-
     return {
         'id': f"cle-{item['id']}", 'source': 'Cleveland Museum',
         'title': safe_str(item.get('title')), 'artist': safe_str(artist),
@@ -268,10 +279,8 @@ def normalize_harvard(item):
     if 'ids.lib.harvard.edu' in url:
         high = url.replace('full/full', 'full/!2048,2048')
         iiif = url.replace('/full/full/0/default.jpg', '/info.json')
-    
     people = item.get('people', [])
     artist = people[0].get('name', 'Unknown') if people else 'Unknown'
-    
     return {
         'id': f"harv-{item['id']}", 'source': 'Harvard Art Museums',
         'title': safe_str(item.get('title')), 'artist': safe_str(artist),
@@ -285,18 +294,13 @@ def normalize_smithsonian(item):
         content = item.get('content', {})
         media = content.get('descriptiveNonRepeating', {}).get('online_media', {}).get('media', [])
         if not media: return None
-        
         thumb = media[0].get('thumbnail')
         if not thumb: return None
-        
-        # Yüksek çözünürlük ara
         high = thumb
         for res in media[0].get('resources', []):
             if res.get('url'): high = res['url']; break
-            
         artist = content.get('indexedStructured', {}).get('name', ['Unknown'])[0]
         title = content.get('descriptiveNonRepeating', {}).get('title', {}).get('content', '')
-        
         return {
             'id': f"smith-{item.get('id')}", 'source': 'Smithsonian',
             'title': safe_str(title), 'artist': safe_str(artist),
@@ -370,22 +374,18 @@ def normalize_va(item):
 
 def normalize_getty(item):
     if not item.get('_label'): return None
-    # Getty yapısı karmaşıktır, basitleştirilmiş hata korumalı blok
     try:
         rep = item.get('representation', [{}])
         if isinstance(rep, dict): rep = [rep]
         if not rep or not rep[0].get('id'): return None
-        
         base = rep[0]['id']
         iiif = base.replace('/full/full/0/default.jpg', '/info.json') if 'iiif' in base else None
-        
         artist = 'Unknown'
         prod = item.get('produced_by', {})
         if prod and 'carried_out_by' in prod:
             makers = prod['carried_out_by']
             if isinstance(makers, list): artist = makers[0].get('_label', 'Unknown')
             elif isinstance(makers, dict): artist = makers.get('_label', 'Unknown')
-            
         return {
             'id': f"getty-{item.get('id', '').split('/')[-1]}", 'source': 'The Getty',
             'title': safe_str(item.get('_label')), 'artist': safe_str(artist),
@@ -403,7 +403,6 @@ def normalize_nga(item):
         base = url.split('/full/')[0]
         iiif = f"{base}/info.json"
         high = f"{base}/full/!2048,2048/0/default.jpg"
-        
     return {
         'id': f"nga-{item.get('objectid')}", 'source': 'National Gallery (US)',
         'title': safe_str(item.get('title')), 'artist': safe_str(item.get('attribution', 'Unknown')),
@@ -412,8 +411,7 @@ def normalize_nga(item):
         'iiif_manifest': iiif, 'colors': [], 'dimensions': ''
     }
 
-# --- 5. FETCH ENGINE (Eksik Fonksiyonlar Giderildi) ---
-
+# --- 5. FETCH ENGINE ---
 @st.cache_data(ttl=3600, show_spinner=False)
 def search_met_ids_cached(query):
     try:
@@ -427,7 +425,6 @@ def fetch_met_details(oid):
         if r.status_code == 200: return normalize_met(r.json())
     except: return None
 
-# Bütün yan API'ler burada tanımlı:
 def fetch_rijks(q, limit, page):
     if "YOUR_KEY" in RIJKS_API_KEY: return []
     try:
@@ -496,7 +493,6 @@ def fetch_nga(q, limit, page):
 
 def fetch_artworks_page(query, page_num):
     results = []
-    # Chicago, Cleveland, Met (Ana Kaynaklar)
     def _chi():
         try:
             r = requests.get(f"https://api.artic.edu/api/v1/artworks/search?q={query}&page={page_num}&limit=4&fields=id,title,image_id,artist_display,date_display&query[term][is_public_domain]=true", timeout=3)
@@ -514,15 +510,12 @@ def fetch_artworks_page(query, page_num):
         if not ids:
             ids = search_met_ids_cached(query)
             st.session_state.met_ids = ids
-        
         start, end = (page_num-1)*4, (page_num-1)*4 + 4
         target_ids = ids[start:end]
         if not target_ids: return []
-        
         with concurrent.futures.ThreadPoolExecutor() as ex:
             return [res for res in ex.map(fetch_met_details, target_ids) if res]
 
-    # Güvenli sarmalayıcı
     def safe_exec(func, *args):
         try: return func(*args)
         except: return []
@@ -550,11 +543,16 @@ def fetch_artworks_page(query, page_num):
     return results
 
 # --- 6. UI ---
+
+# BÜYÜTÜCÜ VE YENİ SEKME BUTONU EKLENDİ
 def zoomable_image_pro(src, alt, iiif=None):
+    # Sağ üst köşeye YENİ SEKMEDE AÇ ikonu/butonu eklendi.
+    ext_btn_html = f'<a href="{src}" target="_blank" style="position:absolute; top:15px; right:15px; z-index:9999; background:rgba(20,20,20,0.8); color:#d4af37; border:1px solid #d4af37; padding:8px 15px; border-radius:4px; font-family:sans-serif; font-size:11px; text-decoration:none; letter-spacing:1px; transition:0.3s; box-shadow:0 4px 10px rgba(0,0,0,0.5);" onmouseover="this.style.background=\'#d4af37\'; this.style.color=\'#000\'" onmouseout="this.style.background=\'rgba(20,20,20,0.8)\'; this.style.color=\'#d4af37\'">YENİ SEKMEDE AÇ ↗</a>'
+    
     if iiif:
-        html = f"""<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1.0"><script src="https://cdn.jsdelivr.net/npm/openseadragon@4.1.0/build/openseadragon/openseadragon.min.js"></script><style>body{{margin:0;background:#050505;height:100vh;overflow:hidden}}#osd{{width:100%;height:100%}}</style></head><body><div id="osd"></div><script>OpenSeadragon({{id:"osd",prefixUrl:"https://cdn.jsdelivr.net/npm/openseadragon@4.1.0/build/openseadragon/images/",tileSources:"{iiif}",showNavigationControl:true,gestureSettingsMouse:{{clickToZoom:false}} }});</script></body></html>"""
+        html = f"""<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1.0"><script src="https://cdn.jsdelivr.net/npm/openseadragon@4.1.0/build/openseadragon/openseadragon.min.js"></script><style>body{{margin:0;background:#050505;height:100vh;overflow:hidden}}#osd{{width:100%;height:100%}}</style></head><body>{ext_btn_html}<div id="osd"></div><script>OpenSeadragon({{id:"osd",prefixUrl:"https://cdn.jsdelivr.net/npm/openseadragon@4.1.0/build/openseadragon/images/",tileSources:"{iiif}",showNavigationControl:true,gestureSettingsMouse:{{clickToZoom:false}} }});</script></body></html>"""
     else:
-        html = f"""<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1.0"><script src="https://unpkg.com/@panzoom/panzoom@4.5.1/dist/panzoom.min.js"></script><style>body{{margin:0;background:#050505;height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden}}img{{max-width:100%;max-height:100%;object-fit:contain}}</style></head><body><div id="sc"><img src="{src}" id="tg"></div><script>const e=document.getElementById('tg');const p=Panzoom(e,{{maxScale:5,minScale:0.5,contain:'outside'}});e.parentElement.addEventListener('wheel',p.zoomWithWheel);</script></body></html>"""
+        html = f"""<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1.0"><script src="https://unpkg.com/@panzoom/panzoom@4.5.1/dist/panzoom.min.js"></script><style>body{{margin:0;background:#050505;height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden}}img{{max-width:100%;max-height:100%;object-fit:contain}}</style></head><body>{ext_btn_html}<div id="sc"><img src="{src}" id="tg"></div><script>const e=document.getElementById('tg');const p=Panzoom(e,{{maxScale:5,minScale:0.5,contain:'outside'}});e.parentElement.addEventListener('wheel',p.zoomWithWheel);</script></body></html>"""
     components.html(html, height=600)
 
 # Header
@@ -575,13 +573,20 @@ if st.session_state.view == 'detail' and st.session_state.selected_art:
     if st.button("← KOLEKSİYONA DÖN"):
         st.session_state.view = 'list'
         st.rerun()
+        
     st.markdown(f"<h2 style='text-align:center;'>{art['title']}</h2>", unsafe_allow_html=True)
     zoomable_image_pro(art['high_res'], art['title'], art.get('iiif_manifest'))
+    
+    # Detay Bilgileri ve Ekstra Linkler eklendi
     st.markdown(f"""
     <div style="text-align:center; margin-top:20px; color:#888;">
-        <p style="font-family:'Playfair Display'; font-size:22px; color:#d4af37;">{art['artist']}</p>
-        <p>{art['date']} • {art['source']}</p>
-        <a href="{art['link']}" target="_blank" style="color:#aaa;">MÜZE KAYDI ↗</a>
+        <p style="font-family:'Playfair Display'; font-size:24px; color:#d4af37; margin-bottom:5px;">{art['artist']}</p>
+        <p style="font-size:14px;">{art['date']} • {art['source']}</p>
+        
+        <div style="display:flex; justify-content:center; gap:25px; margin-top:25px;">
+            <a href="{art['high_res']}" target="_blank" class="art-link primary">🔍 TAM BOYUT AÇ</a>
+            <a href="{art['link']}" target="_blank" class="art-link">🏛️ MÜZE KAYDI ↗</a>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -605,12 +610,8 @@ else:
                     st.session_state.artworks.append(x)
                     st.session_state.seen_ids.add(x['id'])
     
-    # HERO SECTION (Gelişmiş Seçim)
     if st.session_state.artworks:
-        # Hero için en iyi görseli bulmaya çalış (ilk 5 içinde varsa)
         hero = st.session_state.artworks[0]
-        # Basit mantık: Genellikle yatay resimler hero için daha iyidir, ama burada ilkini alıyoruz.
-        
         st.markdown(f"""
         <div class="hero-container">
             <img src="{hero['high_res']}" class="hero-img">
@@ -622,7 +623,6 @@ else:
         </div>
         """, unsafe_allow_html=True)
 
-    # GRID
     c1, c2 = st.columns(2)
     items = st.session_state.artworks[1:]
     for i, art in enumerate(items):
@@ -636,7 +636,6 @@ else:
                 st.rerun()
             st.markdown("<div style='margin-bottom:40px;'></div>", unsafe_allow_html=True)
 
-    # Load More
     col1, col2, col3 = st.columns([1,2,1])
     with col2:
         st.markdown('<div class="load-more-btn">', unsafe_allow_html=True)
