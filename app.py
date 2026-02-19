@@ -153,9 +153,10 @@ st.markdown("""
         color: #e0e0e0; 
         text-decoration: none; 
         border-bottom: 1px solid #444; 
-        padding-bottom: 2px; 
+        padding-bottom: 3px; 
         font-size: 13px; 
-        letter-spacing: 1px; 
+        font-family: 'Cinzel', serif;
+        letter-spacing: 2px; 
         transition: 0.3s ease;
     }
     .art-link:hover {
@@ -164,7 +165,8 @@ st.markdown("""
     }
     .art-link.primary {
         border-bottom-color: #d4af37;
-        color: #fff;
+        color: #d4af37;
+        font-weight: 600;
     }
     
     /* Selectbox */
@@ -544,9 +546,7 @@ def fetch_artworks_page(query, page_num):
 
 # --- 6. UI ---
 
-# BÜYÜTÜCÜ VE YENİ SEKME BUTONU EKLENDİ
 def zoomable_image_pro(src, alt, iiif=None):
-    # Sağ üst köşeye YENİ SEKMEDE AÇ ikonu/butonu eklendi.
     ext_btn_html = f'<a href="{src}" target="_blank" style="position:absolute; top:15px; right:15px; z-index:9999; background:rgba(20,20,20,0.8); color:#d4af37; border:1px solid #d4af37; padding:8px 15px; border-radius:4px; font-family:sans-serif; font-size:11px; text-decoration:none; letter-spacing:1px; transition:0.3s; box-shadow:0 4px 10px rgba(0,0,0,0.5);" onmouseover="this.style.background=\'#d4af37\'; this.style.color=\'#000\'" onmouseout="this.style.background=\'rgba(20,20,20,0.8)\'; this.style.color=\'#d4af37\'">YENİ SEKMEDE AÇ ↗</a>'
     
     if iiif:
@@ -577,18 +577,19 @@ if st.session_state.view == 'detail' and st.session_state.selected_art:
     st.markdown(f"<h2 style='text-align:center;'>{art['title']}</h2>", unsafe_allow_html=True)
     zoomable_image_pro(art['high_res'], art['title'], art.get('iiif_manifest'))
     
-    # Detay Bilgileri ve Ekstra Linkler eklendi
-    st.markdown(f"""
-    <div style="text-align:center; margin-top:20px; color:#888;">
-        <p style="font-family:'Playfair Display'; font-size:24px; color:#d4af37; margin-bottom:5px;">{art['artist']}</p>
-        <p style="font-size:14px;">{art['date']} • {art['source']}</p>
-        
-        <div style="display:flex; justify-content:center; gap:25px; margin-top:25px;">
-            <a href="{art['high_res']}" target="_blank" class="art-link primary">🔍 TAM BOYUT AÇ</a>
-            <a href="{art['link']}" target="_blank" class="art-link">🏛️ MÜZE KAYDI ↗</a>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    # DİKKAT: Markdown blokları içindeki HTML kodlarında girinti (boşluk) olmaması çok önemlidir.
+    # Girinti bırakılırsa Streamlit bunu 'raw code block' olarak render eder.
+    detail_html = f"""
+<div style="text-align:center; margin-top:25px; padding: 30px 20px; border: 1px solid #1a1a1a; border-radius: 8px; background-color: #080808; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+<p style="font-family:'Playfair Display', serif; font-size:28px; color:#d4af37; margin-bottom:8px; font-style:italic;">{art['artist']}</p>
+<p style="font-family:'Lato', sans-serif; font-size:13px; color:#888; letter-spacing:2px; text-transform:uppercase;">{art['date']} &nbsp;•&nbsp; {art['source']}</p>
+<div style="display:flex; justify-content:center; gap:35px; margin-top:35px;">
+<a href="{art['high_res']}" target="_blank" class="art-link primary">🔍 TAM BOYUTU KEŞFET</a>
+<a href="{art['link']}" target="_blank" class="art-link">🏛️ MÜZE KAYDINA GİT ↗</a>
+</div>
+</div>
+"""
+    st.markdown(detail_html, unsafe_allow_html=True)
 
 else:
     # Arama
@@ -612,16 +613,19 @@ else:
     
     if st.session_state.artworks:
         hero = st.session_state.artworks[0]
-        st.markdown(f"""
-        <div class="hero-container">
-            <img src="{hero['high_res']}" class="hero-img">
-            <div class="hero-overlay">
-                <div style="font-family:'Cinzel'; color:#d4af37; font-size:12px; letter-spacing:2px;">ÖNE ÇIKAN</div>
-                <div style="font-family:'Playfair Display'; font-size:32px; color:#fff;">{hero['title']}</div>
-                <div style="font-family:'Lato'; font-size:16px; color:#ccc;">{hero['artist']}</div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        
+        # Hero section HTML kodunda girinti olmaması için hizalandı
+        hero_html = f"""
+<div class="hero-container">
+<img src="{hero['high_res']}" class="hero-img">
+<div class="hero-overlay">
+<div style="font-family:'Cinzel', serif; color:#d4af37; font-size:12px; letter-spacing:2px; margin-bottom:5px;">ÖNE ÇIKAN BAŞYAPIT</div>
+<div style="font-family:'Playfair Display', serif; font-size:36px; color:#fff; font-style:italic;">{hero['title']}</div>
+<div style="font-family:'Lato', sans-serif; font-size:16px; color:#ccc; letter-spacing:1px; margin-top:5px;">{hero['artist']}</div>
+</div>
+</div>
+"""
+        st.markdown(hero_html, unsafe_allow_html=True)
 
     c1, c2 = st.columns(2)
     items = st.session_state.artworks[1:]
@@ -638,6 +642,7 @@ else:
 
     col1, col2, col3 = st.columns([1,2,1])
     with col2:
+        # Buton divinde girinti olmaması için
         st.markdown('<div class="load-more-btn">', unsafe_allow_html=True)
         if st.button("DAHA FAZLA KEŞFET", use_container_width=True):
             st.session_state.page += 1
