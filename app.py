@@ -222,7 +222,8 @@ def normalize_chicago(item):
         'high_res': f"{iiif}/{item['image_id']}/full/1686,/0/default.jpg", 
         'link': f"https://www.artic.edu/artworks/{item['id']}",
         'iiif_manifest': f"{iiif}/{item['image_id']}/info.json", 
-        'colors': [], 'dimensions': safe_str(item.get('dimensions', ''))
+        'colors': [], 'dimensions': safe_str(item.get('dimensions', '')),
+        'medium': safe_str(item.get('medium_display')), 'description': safe_str(item.get('description'))
     }
 
 def normalize_cleveland(item):
@@ -243,7 +244,8 @@ def normalize_cleveland(item):
         'title': safe_str(item.get('title')), 'artist': safe_str(artist),
         'date': safe_str(item.get('creation_date')), 'thumbnail': web_img,
         'high_res': high_res, 'link': item.get('url', '#'), 'iiif_manifest': None,
-        'colors': colors, 'dimensions': safe_str(item.get('measurements', ''))
+        'colors': colors, 'dimensions': safe_str(item.get('measurements', '')),
+        'medium': safe_str(item.get('technique')), 'description': safe_str(item.get('description'))
     }
 
 def normalize_met(item):
@@ -256,7 +258,8 @@ def normalize_met(item):
         'thumbnail': item['primaryImageSmall'],
         'high_res': item.get('primaryImage', item['primaryImageSmall']), 
         'link': item.get('objectURL', '#'), 'iiif_manifest': None,
-        'colors': [], 'dimensions': safe_str(item.get('dimensions', ''))
+        'colors': [], 'dimensions': safe_str(item.get('dimensions', '')),
+        'medium': safe_str(item.get('medium')), 'description': ''
     }
 
 def normalize_rijksmuseum(item):
@@ -270,7 +273,8 @@ def normalize_rijksmuseum(item):
         'thumbnail': url,
         'high_res': url.replace('=s0', '=s2048'), 
         'link': item.get('links', {}).get('web', '#'),
-        'iiif_manifest': None, 'colors': [], 'dimensions': ''
+        'iiif_manifest': None, 'colors': [], 'dimensions': '',
+        'medium': safe_str(item.get('physicalMedium')), 'description': safe_str(item.get('description'))
     }
 
 def normalize_harvard(item):
@@ -288,7 +292,8 @@ def normalize_harvard(item):
         'title': safe_str(item.get('title')), 'artist': safe_str(artist),
         'date': safe_str(item.get('dated', '')), 'thumbnail': url,
         'high_res': high, 'link': item.get('url', '#'), 'iiif_manifest': iiif,
-        'colors': [], 'dimensions': ''
+        'colors': [], 'dimensions': '',
+        'medium': safe_str(item.get('medium')), 'description': safe_str(item.get('description'))
     }
 
 def normalize_smithsonian(item):
@@ -308,7 +313,8 @@ def normalize_smithsonian(item):
             'title': safe_str(title), 'artist': safe_str(artist),
             'date': '', 'thumbnail': thumb, 'high_res': high,
             'link': content.get('descriptiveNonRepeating', {}).get('record_link', '#'),
-            'iiif_manifest': None, 'colors': [], 'dimensions': ''
+            'iiif_manifest': None, 'colors': [], 'dimensions': '',
+            'medium': '', 'description': ''
         }
     except: return None
 
@@ -322,7 +328,8 @@ def normalize_europeana(item):
             'date': safe_str(item.get('year', [''])[0]),
             'thumbnail': item['edmPreview'][0],
             'high_res': item.get('edmIsShownBy', [item['edmPreview'][0]])[0],
-            'link': item.get('guid', '#'), 'iiif_manifest': None, 'colors': [], 'dimensions': ''
+            'link': item.get('guid', '#'), 'iiif_manifest': None, 'colors': [], 'dimensions': '',
+            'medium': safe_str(item.get('dcFormat', [''])[0]), 'description': safe_str(item.get('dcDescription', [''])[0])
         }
     except: return None
 
@@ -339,7 +346,8 @@ def normalize_cooper_hewitt(item):
             'date': safe_str(item.get('date', '')),
             'thumbnail': img.get('sq', {}).get('url', base),
             'high_res': img.get('z', {}).get('url', base),
-            'link': item.get('url', '#'), 'iiif_manifest': None, 'colors': [], 'dimensions': ''
+            'link': item.get('url', '#'), 'iiif_manifest': None, 'colors': [], 'dimensions': '',
+            'medium': safe_str(item.get('medium')), 'description': safe_str(item.get('description'))
         }
     except: return None
 
@@ -355,7 +363,8 @@ def normalize_brooklyn(item):
             'date': safe_str(item.get('object_date', '')),
             'thumbnail': img, 'high_res': img,
             'link': f"https://www.brooklynmuseum.org/opencollection/objects/{item['id']}",
-            'iiif_manifest': None, 'colors': [], 'dimensions': ''
+            'iiif_manifest': None, 'colors': [], 'dimensions': '',
+            'medium': safe_str(item.get('medium')), 'description': safe_str(item.get('description'))
         }
     except: return None
 
@@ -371,7 +380,8 @@ def normalize_va(item):
         'thumbnail': f"{base}/full/!400,400/0/default.jpg",
         'high_res': f"{base}/full/!2048,2048/0/default.jpg",
         'link': f"https://collections.vam.ac.uk/item/{item.get('systemNumber')}",
-        'iiif_manifest': f"{base}/info.json", 'colors': [], 'dimensions': ''
+        'iiif_manifest': f"{base}/info.json", 'colors': [], 'dimensions': '',
+        'medium': safe_str(item.get('materials_techniques', '')), 'description': safe_str(item.get('summaryDescription', ''))
     }
 
 def normalize_getty(item):
@@ -392,7 +402,8 @@ def normalize_getty(item):
             'id': f"getty-{item.get('id', '').split('/')[-1]}", 'source': 'The Getty',
             'title': safe_str(item.get('_label')), 'artist': safe_str(artist),
             'date': '', 'thumbnail': base, 'high_res': base,
-            'link': item.get('id', '#'), 'iiif_manifest': iiif, 'colors': [], 'dimensions': ''
+            'link': item.get('id', '#'), 'iiif_manifest': iiif, 'colors': [], 'dimensions': '',
+            'medium': '', 'description': ''
         }
     except: return None
 
@@ -410,7 +421,8 @@ def normalize_nga(item):
         'title': safe_str(item.get('title')), 'artist': safe_str(item.get('attribution', 'Unknown')),
         'date': safe_str(item.get('displaydate', '')), 'thumbnail': url, 'high_res': high,
         'link': f"https://www.nga.gov/collection/art-object-page.{item.get('objectid')}.html",
-        'iiif_manifest': iiif, 'colors': [], 'dimensions': ''
+        'iiif_manifest': iiif, 'colors': [], 'dimensions': '',
+        'medium': safe_str(item.get('medium')), 'description': safe_str(item.get('description'))
     }
 
 # --- 5. FETCH ENGINE ---
@@ -497,7 +509,7 @@ def fetch_artworks_page(query, page_num):
     results = []
     def _chi():
         try:
-            r = requests.get(f"https://api.artic.edu/api/v1/artworks/search?q={query}&page={page_num}&limit=4&fields=id,title,image_id,artist_display,date_display&query[term][is_public_domain]=true", timeout=3)
+            r = requests.get(f"https://api.artic.edu/api/v1/artworks/search?q={query}&page={page_num}&limit=4&fields=id,title,image_id,artist_display,date_display,medium_display,description,dimensions&query[term][is_public_domain]=true", timeout=3)
             return [normalize_chicago(x) for x in r.json()['data'] if normalize_chicago(x)]
         except: return []
 
@@ -577,13 +589,26 @@ if st.session_state.view == 'detail' and st.session_state.selected_art:
     st.markdown(f"<h2 style='text-align:center;'>{art['title']}</h2>", unsafe_allow_html=True)
     zoomable_image_pro(art['high_res'], art['title'], art.get('iiif_manifest'))
     
+    # Yeni eklenen bilgiler: Materyal (Medium) ve Eser Hikayesi (Description)
+    medium_html = f'<p style="font-size:14px; font-style:italic; color:#999; margin-top:5px; margin-bottom:0;">{art.get("medium", "")}</p>' if art.get("medium") else ""
+    
+    desc_html = ""
+    if art.get("description") and art["description"].lower() not in ["none", "null"]:
+        desc_html = f"""
+<div style="margin-top:30px; padding-top:25px; border-top:1px dashed #333; text-align:justify; font-family:'Playfair Display', serif; font-size:15px; color:#bbb; line-height:1.7; max-width:800px; margin-left:auto; margin-right:auto;">
+<span style="color:#d4af37; font-size:11px; font-family:'Cinzel', serif; letter-spacing:3px; display:block; margin-bottom:15px; text-align:center;">ESERİN HİKAYESİ</span>
+{art['description']}
+</div>
+"""
+
     # DİKKAT: Markdown blokları içindeki HTML kodlarında girinti (boşluk) olmaması çok önemlidir.
-    # Girinti bırakılırsa Streamlit bunu 'raw code block' olarak render eder.
     detail_html = f"""
-<div style="text-align:center; margin-top:25px; padding: 30px 20px; border: 1px solid #1a1a1a; border-radius: 8px; background-color: #080808; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
-<p style="font-family:'Playfair Display', serif; font-size:28px; color:#d4af37; margin-bottom:8px; font-style:italic;">{art['artist']}</p>
-<p style="font-family:'Lato', sans-serif; font-size:13px; color:#888; letter-spacing:2px; text-transform:uppercase;">{art['date']} &nbsp;•&nbsp; {art['source']}</p>
-<div style="display:flex; justify-content:center; gap:35px; margin-top:35px;">
+<div style="text-align:center; margin-top:25px; padding: 40px 20px; border: 1px solid #1a1a1a; border-radius: 8px; background-color: #080808; box-shadow: 0 10px 40px rgba(0,0,0,0.8);">
+<p style="font-family:'Playfair Display', serif; font-size:32px; color:#d4af37; margin-bottom:8px; font-style:italic;">{art['artist']}</p>
+<p style="font-family:'Lato', sans-serif; font-size:13px; color:#888; letter-spacing:2px; text-transform:uppercase; margin-bottom:5px;">{art['date']} &nbsp;•&nbsp; {art['source']}</p>
+{medium_html}
+{desc_html}
+<div style="display:flex; justify-content:center; gap:35px; margin-top:40px;">
 <a href="{art['high_res']}" target="_blank" class="art-link primary">🔍 TAM BOYUTU KEŞFET</a>
 <a href="{art['link']}" target="_blank" class="art-link">🏛️ MÜZE KAYDINA GİT ↗</a>
 </div>
